@@ -2,8 +2,9 @@
 # Para publicar una versión: sube la versión en manifest.json y pyproject.toml,
 # y crea un tag (ej. v0.2.0) o un release en GitHub.
 # En cada pull request corre los tests y deja el .mcpb como artefacto (sin release).
-# Versiones de prueba: un tag con guion (ej. v0.6.0-beta.1) sale como prerelease, así se
-# prueba desde Releases sin terminal y no aparece como "última versión".
+# Versiones de prueba: con una versión beta en manifest.json (ej. 0.6.0-beta.1), correr este
+# workflow a mano (Run workflow) sobre la rama crea el tag v0.6.0-beta.1 y una prerelease con
+# el .mcpb, para probar desde Releases sin terminal. Un tag con guion también sale como prerelease.
 name: Release extensión
 
 on:
@@ -49,4 +50,19 @@ jobs:
         with:
           files: ucursos.mcpb
           prerelease: ${{ contains(github.ref_name, '-') }}
+          generate_release_notes: true
+
+      - name: Versión del manifest
+        id: version
+        run: echo "v=$(jq -r .version manifest.json)" >> "$GITHUB_OUTPUT"
+
+      - name: Publicar versión de prueba
+        if: github.event_name == 'workflow_dispatch' && contains(steps.version.outputs.v, '-')
+        uses: softprops/action-gh-release@v2
+        with:
+          tag_name: v${{ steps.version.outputs.v }}
+          name: v${{ steps.version.outputs.v }}
+          target_commitish: ${{ github.sha }}
+          prerelease: true
+          files: ucursos.mcpb
           generate_release_notes: true
