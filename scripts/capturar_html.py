@@ -12,7 +12,8 @@ Ejemplos:
 
 Anonimización (revisa igual el archivo antes de commitearlo):
   - hashes de usuario (/usuario/<hash32>/) -> 000...0
-  - query strings con tokens (csrf, etc.) -> se eliminan
+  - parámetros de query con tokens (csrf, valores largos o hashes) -> se eliminan; los cortos
+    como id=123 o accion=bajar se conservan, porque los parsers los necesitan
   - nombres en links a perfiles de usuario -> "Persona N"
   - scripts inline -> se eliminan (pueden traer tokens)
 """
@@ -22,6 +23,7 @@ from __future__ import annotations
 import re
 import sys
 from pathlib import Path
+from urllib.parse import parse_qsl, urlencode
 
 from bs4 import BeautifulSoup
 
@@ -30,6 +32,17 @@ from ucursos_mcp.client import UCursosClient
 FIXTURES = Path(__file__).resolve().parent.parent / "tests" / "fixtures"
 HASH_RE = re.compile(r"/usuario/[0-9a-f]{32}/")
 FALSO = "/usuario/" + "0" * 32 + "/"
+SECRETO_RE = re.compile(r"csrf|token|ajax|sess|key|hash|auth|sig", re.I)
+
+
+def limpiar_query(href: str) -> str:
+    """Deja solo los parámetros cortos y no secretos (id=123, accion=bajar)."""
+    base, _, query = href.partition("?")
+    if not query:
+        return href
+    seguros = [(k, v) for k, v in parse_qsl(query, keep_blank_values=True)
+               if not SECRETO_RE.search(k) and len(v) <= 12 and not re.fullmatch(r"[0-9a-f]{16,}", v)]
+    return base + (f"?{urlencode(seguros)}" if seguros else "")
 
 
 def anonimizar(html: str) -> str:
@@ -47,7 +60,7 @@ def anonimizar(html: str) -> str:
             if nombre:
                 personas.setdefault(nombre, f"Persona {len(personas) + 1}")
                 a.string = personas[nombre]
-        a["href"] = href.split("?")[0]
+        a["href"] = limpiar_query(href)
 
     for tag in soup.find_all(["form", "input"]):
         for attr in ("action", "value"):

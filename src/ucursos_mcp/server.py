@@ -22,7 +22,7 @@ from mcp_types import ToolAnnotations
 
 from . import auth, documentos, navegadores, parsers
 from .auth import SESSION_PATH
-from .client import SessionExpired, UCursosClient, validar_cookies
+from .client import AccionBloqueada, SessionExpired, UCursosClient, validar_cookies
 from .models import Curso, CursoRef, Tarea
 
 INSTRUCCIONES = """\
@@ -90,6 +90,8 @@ def errores_legibles(fn):
             return fn(*args, **kwargs)
         except SessionExpired as e:
             raise ToolError(f"{e} Llama a iniciar_sesion para que el usuario vuelva a entrar.") from e
+        except AccionBloqueada as e:
+            raise ToolError(str(e)) from e
         except httpx.HTTPStatusError as e:
             code = e.response.status_code
             if code in (401, 403):

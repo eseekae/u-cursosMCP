@@ -271,3 +271,21 @@ def test_material_por_categoria(cli):
     assert [m["titulo"] for m in server.material_docente(ACTUAL, categoria="ayudantias")] == ["Aux1.pdf"]
     with pytest.raises(ToolError, match="Categorías del curso: Ayudantías, Clases"):
         server.material_docente(ACTUAL, categoria="pautas")
+
+
+def test_accion_bloqueada_llega_legible():
+    from ucursos_mcp.client import AccionBloqueada
+
+    with pytest.raises(ToolError, match="solo lectura"):
+        _falla_con(AccionBloqueada("No pido /x/?accion=estrella: es una acción que modifica U-Cursos y este MCP es de solo lectura."))()
+
+
+def test_capturar_html_conserva_ids_y_borra_tokens():
+    import importlib.util
+    from pathlib import Path
+
+    spec = importlib.util.spec_from_file_location("capturar_html", Path(__file__).parent.parent / "scripts" / "capturar_html.py")
+    mod = importlib.util.module_from_spec(spec)
+    spec.loader.exec_module(mod)
+    assert mod.limpiar_query("bajar?id=91&csrf=abcdef0123456789abcdef&accion=bajar") == "bajar?id=91&accion=bajar"
+    assert mod.limpiar_query("x?t=0123456789abcdef0123456789abcdef") == "x"

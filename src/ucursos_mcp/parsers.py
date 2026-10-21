@@ -185,6 +185,21 @@ def parse_servicios(html: str, curso_path: str) -> list[str]:
 
 # ---------------------------------------------------------------- tareas
 
+# Links de control de la interfaz (estrella, favoritos, acciones): nunca son la tarea.
+CONTROL_RE = re.compile(r"estrella|favorit")
+
+
+def _es_control(a: Tag) -> bool:
+    """Botones con forma de link ("Agregar a mis Estrellas", iconos, acciones por AJAX)."""
+    href = a.get("href", "")
+    marca = sin_tildes(" ".join([href, a.get("title", ""), a.get("onclick", ""), a.get("id", ""), *a.get("class", []), _txt(a)]))
+    return (
+        href.startswith(("#", "javascript:"))
+        or "accion=" in href
+        or bool(CONTROL_RE.search(marca))
+    )
+
+
 TAREA_ID_RE = re.compile(r"/tareas/(?:[a-z_]+/)*(\d+)(?:/|$|\?)|[?&]id(?:_tarea)?=(\d+)")
 
 # Columna -> palabras de su encabezado (sin tildes, en minúsculas). Se busca en orden.
@@ -242,9 +257,19 @@ def parse_tareas(html: str, base: str = "/", anio: int | None = None) -> list[Ta
         if len(tds) <= max(cols.values()):
             continue
         celda = tds[cols["titulo"]]
-        links = celda.find_all("a")
-        link = next((a for a in links if "tareas" in a.get("href", "")), links[0] if links else None)
-        titulo = _txt(link) if link else _txt(celda)
+        controles = [a for a in celda.find_all("a") if _es_control(a)]
+        links = [a for a in celda.find_all("a") if a not in controles and _txt(a)]
+        # Preferir el link que apunta a una tarea con id; si no, el primero con texto.
+        link = next(
+            (a for a in links if a.get("href") and _es_u_cursos(a["href"]) and _id_tarea(_ruta(base, a["href"]))),
+            links[0] if links else None,
+        )
+        if link is not None:
+            titulo = _txt(link)
+        else:
+            for c in controles:
+                c.decompose()
+            titulo = _txt(celda)
         if not titulo:
             continue
         url = _ruta(base, link["href"]) if link is not None and link.get("href") and _es_u_cursos(link["href"]) else None
@@ -365,7 +390,7 @@ def parse_detalle_tarea(html: str, base: str, anio: int | None = None) -> Detall
     entregados: dict[str, Archivo] = {}
     for a in cuerpo.find_all("a", href=True):
         href = a["href"]
-        if not ARCHIVO_RE.search(href) or not _es_u_cursos(href):
+        if not ARCHIVO_RE.search(href) or not _es_u_cursos(href) or _es_control(a):
             continue
         descarga = _ruta(base, href)
         nombre = _txt(a) or urlparse(descarga).path.rstrip("/").rsplit("/", 1)[-1]

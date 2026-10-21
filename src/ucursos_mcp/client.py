@@ -27,9 +27,26 @@ URL_USUARIO_RE = re.compile(r"/usuario/([0-9a-f]{32})/")
 # Pausa mínima entre requests: somos un cliente educado, no un crawler.
 MIN_INTERVAL_S = 0.5
 
+# U-Cursos ejecuta algunas acciones con un simple GET (?accion=...): marcar estrellas, borrar, etc.
+# Este MCP es de solo lectura, así que esas URLs no se piden nunca, vengan de donde vengan.
+ACCION_ESCRITURA_RE = re.compile(
+    r"[?&](?:accion|action|op)=[^&]*(?:estrella|favorit|marcar|agregar|quitar|borrar|eliminar|guardar|"
+    r"enviar|publicar|editar|subir|entregar|votar|leid|suscrib|seguir|cerrar|ocultar)",
+    re.I,
+)
+
 
 class SessionExpired(RuntimeError):
     """La sesión guardada ya no sirve: hay que volver a entrar (tool iniciar_sesion o `ucursos-login`)."""
+
+
+class AccionBloqueada(ValueError):
+    """Se intentó pedir una URL que ejecuta una acción en U-Cursos (el MCP es de solo lectura)."""
+
+
+def verificar_solo_lectura(path: str) -> None:
+    if ACCION_ESCRITURA_RE.search(path):
+        raise AccionBloqueada(f"No pido {path}: es una acción que modifica U-Cursos y este MCP es de solo lectura.")
 
 
 class UsuarioNoEncontrado(SessionExpired):
@@ -79,6 +96,7 @@ class UCursosClient:
 
     def _get_pagina(self, path: str) -> tuple[str, str]:
         """GET a una ruta de U-Cursos. Devuelve (HTML decodificado, URL final tras redirecciones)."""
+        verificar_solo_lectura(path)
         self._throttle()
         resp = self._http.get(path)
         resp.raise_for_status()
@@ -103,6 +121,7 @@ class UCursosClient:
 
     def get_bytes(self, path: str) -> tuple[bytes, str | None]:
         """Descarga binaria (material docente). Devuelve (contenido, nombre_sugerido)."""
+        verificar_solo_lectura(path)
         self._throttle()
         resp = self._http.get(path)
         resp.raise_for_status()

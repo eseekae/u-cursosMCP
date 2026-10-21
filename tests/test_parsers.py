@@ -220,3 +220,24 @@ def test_fixture_real(nombre, parser):
     if not archivo.exists():
         pytest.skip(f"Falta {archivo.name}: captúralo con scripts/capturar_html.py")
     assert parser(archivo.read_text(encoding="utf-8")), f"{nombre}: el parser no sacó nada"
+
+
+TAREAS_CON_ESTRELLA = """
+<table><thead><tr><th>Título</th><th>Fecha Límite</th><th>Estado</th></tr></thead><tbody>
+<tr><td><a href="?accion=estrella&id=4600" class="estrella" title="Agregar a mis Estrellas">Agregar a mis Estrellas</a>
+<a href="r/4600">Tarea 3: Listas</a></td><td>06/11/2026 23:59</td><td>En Plazo</td></tr>
+<tr><td><a href="#" title="Agregar a mis Estrellas"><img></a> Proyecto avance 1</td><td>02/11/2026 10:00</td><td>En Plazo</td></tr>
+</tbody></table>
+"""
+
+
+def test_tareas_ignora_boton_de_estrellas():
+    t, sin_link = parsers.parse_tareas(TAREAS_CON_ESTRELLA, "/ingenieria/2026/2/CC1002/7/tareas/", 2026)
+    assert (t.titulo, t.id, t.url) == ("Tarea 3: Listas", "4600", "/ingenieria/2026/2/CC1002/7/tareas/r/4600")
+    assert (sin_link.titulo, sin_link.id, sin_link.url) == ("Proyecto avance 1", None, None)
+
+
+def test_detalle_no_toma_controles_como_archivos():
+    html = '<h1>T</h1><a href="?accion=estrella&id=1">Agregar a mis Estrellas</a><a href="bajar?id=5">enunciado.pdf</a>'
+    d = parsers.parse_detalle_tarea(html, "/x/tareas/r/1/")
+    assert [a.nombre for a in d.adjuntos] == ["enunciado.pdf"]

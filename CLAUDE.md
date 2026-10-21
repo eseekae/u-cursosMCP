@@ -87,6 +87,8 @@ Skill externa opcional: `scrapling` (disponible en claude.ai) sirve si algún d�
 - Servicios de un curso: historial, material_docente, asistencias2, calendario, clases, correo, encuestas, enlaces, foro, integrantes, material_alumnos, notas, novedades, datos_curso, tareas. Objetos individuales: `{servicio}/o/{id}`.
 - Vistas del usuario: `/usuario/<hash>/{mis_canales, todos_cursos, horario, tareas_usuario, favoritos}/`.
 - Tablas: tareas_usuario -> `table.sortable` (N°, Tarea, Fecha Límite, Estado). El estado trae texto sucio ("Entregada 24 Ago 24 de Agosto a las 22:26 hrs"): se normaliza en `parsers.normalizar_estado`. Ahí el campo curso salía vacío (reporte del 21/10/2026), por eso `tareas` recorre la sección `tareas/` de cada curso del semestre. material_docente -> `table#materiales` (Descargar, N°, Título, Por), descarga vía link con `bajar`. notas -> tabla con th "Evaluación". novedades -> `div.post.objeto`.
+- En `<curso>/tareas/` la celda del título trae primero un link "Agregar a mis Estrellas" (21/10/2026, prueba real): el parser descarta esos controles (`_es_control`). Cálculo 2 (BA29, bachillerato) responde 403 en `tareas/`.
+- Algunas acciones podrían ejecutarse con un GET (`?accion=estrella`, etc.): `client.verificar_solo_lectura` bloquea esas URLs antes de pedirlas. No relajarlo.
 - Hay requests AJAX (`?accion=...&_ajax=...` con token csrf). Posible mejora: usar esos endpoints si devuelven JSON.
 - Respuestas en ISO-8859-1.
 

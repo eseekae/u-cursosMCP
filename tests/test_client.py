@@ -67,3 +67,29 @@ def test_sin_red_lo_dice(servidor):
 
     servidor(handler)
     assert "no pude conectar" in client.validar_cookies(COOKIES)
+
+
+@pytest.mark.parametrize("ruta", [
+    "/ingenieria/2026/2/CC1002/7/tareas/?accion=estrella&id=4600",
+    "/ingenieria/2026/2/CC1002/7/foro/?id=3&accion=borrar",
+    "/x/?ACCION=agregar_favorito",
+])
+def test_no_pide_urls_que_modifican(servidor, ruta):
+    pedidas = []
+    servidor(lambda req: pedidas.append(req.url) or _html("<html></html>"))
+    c = client.UCursosClient(cookies=COOKIES)
+    with pytest.raises(client.AccionBloqueada):
+        c.get_html(ruta)
+    with pytest.raises(client.AccionBloqueada):
+        c.get_bytes(ruta)
+    assert pedidas == []
+
+
+@pytest.mark.parametrize("ruta", [
+    "/ingenieria/2026/2/CC1002/7/material_docente/bajar?id=1",
+    "/ingenieria/2026/2/CC1002/7/material_docente/?accion=bajar&id=1",
+    "/ingenieria/2026/2/CC1002/7/tareas/r/4600",
+])
+def test_lecturas_si_se_piden(servidor, ruta):
+    servidor(lambda req: _html("<html>ok</html>"))
+    assert "ok" in client.UCursosClient(cookies=COOKIES).get_html(ruta)
