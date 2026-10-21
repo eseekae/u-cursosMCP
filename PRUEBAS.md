@@ -17,8 +17,12 @@ Si algo falla al arrancar, el log está en Claude Desktop: Configuración → De
 ## 2. Login
 
 - **Escribe:** `¿Tengo sesión activa en U-Cursos?`
-- **Esperado:** Claude llama `iniciar_sesion` y se abre U-Cursos en tu navegador por defecto. Inicias sesión como siempre, le dices `listo` y Claude llama `estado_sesion`, importa tu sesión y confirma "Sesión activa".
-- **Anota:** en qué navegador se abrió, si pudo importar la sesión (en Windows con Chrome o Edge muy nuevos puede fallar: prueba iniciar sesión en Firefox) y si Claude esperó tu aviso.
+- **Esperado:** Claude llama `iniciar_sesion`, se abre U-Cursos en tu navegador por defecto y Claude te dice cuál es. Inicias sesión como siempre, le dices `listo` y Claude llama `estado_sesion` con ese mismo navegador y confirma "Sesión activa, importada desde <navegador> (perfil ...)".
+- **Prueba también:**
+  - `Inicié sesión en Zen` (o el que no sea el por defecto): debe importar desde ese navegador.
+  - Inicia sesión en un navegador y dile a Claude otro: debe fallar con un diagnóstico que nombra navegador, perfil y cookies encontradas (solo nombres), y sugerir qué hacer. No debe pedirte reintentar igual.
+  - En Windows, con Edge o Chrome: si falla, el diagnóstico debe decir si fue cifrado o archivo bloqueado.
+- **Anota:** en qué navegador se abrió, si coincide con tu navegador por defecto, el texto del diagnóstico si falló (sin valores de cookies) y si Claude esperó tu aviso.
 
 ## 3. Mis cursos
 

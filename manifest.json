@@ -2,9 +2,9 @@
   "manifest_version": "0.4",
   "name": "ucursos",
   "display_name": "U-Cursos (solo lectura)",
-  "version": "0.4.0",
+  "version": "0.5.0",
   "description": "Deja que Claude lea tus cursos de U-Cursos (Universidad de Chile): tareas, notas, novedades y el contenido del material docente.",
-  "long_description": "Servidor MCP no oficial y de solo lectura para U-Cursos. Nunca entrega tareas, publica ni modifica nada. Para entrar, Claude abre una ventana de Edge o Chrome donde tú escribes tu clave; Claude nunca la ve. Las cookies de la sesión quedan solo en tu computador.",
+  "long_description": "Servidor MCP no oficial y de solo lectura para U-Cursos. Nunca entrega tareas, publica ni modifica nada. Para entrar, Claude abre U-Cursos en tu navegador de siempre (Firefox, Zen, Edge, Chrome, Brave...) y tú inicias sesión ahí; Claude nunca ve tu clave e importa la sesión desde ese navegador. Las cookies de la sesión quedan solo en tu computador.",
   "author": {
     "name": "Contribuidores de u-cursosMCP",
     "url": "https://github.com/eseekae/u-cursosMCP"
@@ -31,11 +31,11 @@
   "tools": [
     {
       "name": "iniciar_sesion",
-      "description": "Abre U-Cursos en tu navegador para que inicies sesión"
+      "description": "Abre U-Cursos en tu navegador (el que elijas) para que inicies sesión"
     },
     {
       "name": "estado_sesion",
-      "description": "Importa la sesión del navegador y revisa si está activa"
+      "description": "Importa la sesión de tu navegador, la valida y explica qué falló si no sirve"
     },
     {
       "name": "listar_cursos",

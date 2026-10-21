@@ -19,9 +19,9 @@ from mcp.server.mcpserver import MCPServer
 from mcp.server.mcpserver.exceptions import ToolError
 from mcp_types import ToolAnnotations
 
-from . import auth, documentos, parsers
+from . import auth, documentos, navegadores, parsers
 from .auth import SESSION_PATH
-from .client import SessionExpired, UCursosClient
+from .client import SessionExpired, UCursosClient, validar_cookies
 
 INSTRUCCIONES = """\
 Acceso de solo lectura a U-Cursos, la plataforma de cursos de la Universidad de Chile.
@@ -53,8 +53,9 @@ Reglas:
 - Lee solo lo necesario: no recorras todos los cursos ni todos los archivos si no te lo piden.
 - Es solo lectura: no puedes entregar tareas, publicar ni enviar nada. Si te lo piden, explícalo.
 - Si una tool dice que no hay sesión o que expiró, llama a iniciar_sesion: abre U-Cursos en
-  el navegador normal del usuario para que inicie sesión él mismo (su clave nunca pasa por ti).
-  Espera a que el usuario diga que ya entró y llama a estado_sesion, que importa esa sesión.
+  un navegador del usuario para que inicie sesión él mismo (su clave nunca pasa por ti). Si no
+  sabes cuál usa, pregúntale. Espera a que diga que ya entró y llama a estado_sesion con el
+  mismo navegador. Si falla, muéstrale el diagnóstico y sigue la sugerencia en vez de reintentar igual.
 """
 
 mcp = MCPServer("ucursos", instructions=INSTRUCCIONES)
@@ -145,44 +146,58 @@ def ruta_descarga(path: str, descarga: str) -> str:
 
 
 @mcp.tool(annotations=ESCRIBE_LOCAL)
-def iniciar_sesion() -> str:
-    """Abre U-Cursos en el navegador normal del usuario (Edge, Chrome, Firefox...) para que entre.
+def iniciar_sesion(navegador: str | None = None) -> str:
+    """Abre U-Cursos en un navegador del usuario para que entre él mismo.
 
-    Úsala cuando otra tool diga que no hay sesión o que expiró. El usuario inicia sesión él
-    mismo en su navegador de siempre; su clave nunca pasa por ti. No se automatiza el navegador.
-    Después de abrirlo, pídele al usuario que te avise cuando ya esté dentro y llama a
-    estado_sesion, que importa esa sesión desde el navegador.
+    Úsala cuando otra tool diga que no hay sesión o que expiró. Si no sabes en qué navegador
+    tiene U-Cursos el usuario, pregúntale. `navegador` puede ser: edge, chrome, brave, vivaldi,
+    opera, opera_gx, chromium, firefox, zen o librewolf. Sin él se usa el que funcionó la
+    última vez o el por defecto del sistema. Su clave nunca pasa por ti y no se automatiza nada.
+    Después pídele que avise cuando esté dentro y llama a estado_sesion con el MISMO navegador.
     """
-    auth.abrir_ucursos()
-    return (
-        "Se abrió U-Cursos en el navegador por defecto del usuario. Pídele que inicie sesión ahí "
-        "como lo hace siempre (su cuenta UChile) y que te avise cuando ya esté dentro; después "
-        "llama a estado_sesion para importar la sesión."
-    )
+    try:
+        nav = auth.navegador_preferido(navegador)
+    except navegadores.NavegadorDesconocido as e:
+        raise ToolError(str(e)) from e
+    donde = auth.abrir_ucursos(nav)
+    instalados = [navegadores.NAVEGADORES[n].etiqueta for n in navegadores.instalados()]
+    partes = [f"Se abrió U-Cursos en {donde}."]
+    if nav is None:
+        partes.append("No pude saber cuál es el navegador por defecto: pregúntale al usuario en cuál lo ve.")
+    elif donde != navegadores.NAVEGADORES[nav].etiqueta:
+        etiqueta = navegadores.NAVEGADORES[nav].etiqueta
+        partes.append(f"No encontré el ejecutable de {etiqueta}: si ese no es el que se abrió, pídele que abra u-cursos.cl en {etiqueta} a mano.")
+    partes.append("Pídele al usuario que inicie sesión ahí como siempre (cuenta UChile) y que avise cuando esté dentro.")
+    partes.append(f"Después llama a estado_sesion(navegador=\"{nav}\")." if nav else
+                  "Después llama a estado_sesion con el navegador que te diga.")
+    if instalados:
+        partes.append(
+            f"Navegadores encontrados en este computador: {', '.join(instalados)}. "
+            "Si el usuario usa otro de esos, vuelve a llamar a iniciar_sesion con ese navegador."
+        )
+    return " ".join(partes)
 
 
 @mcp.tool(annotations=ESCRIBE_LOCAL)
 @errores_legibles
-def estado_sesion() -> str:
-    """Importa la sesión desde el navegador del usuario y dice si quedó activa.
+def estado_sesion(navegador: str | None = None, perfil: str | None = None) -> str:
+    """Importa la sesión de U-Cursos desde el navegador del usuario y dice si quedó activa.
 
-    Llámala después de iniciar_sesion (cuando el usuario avise que ya entró) o si una tool
-    dice que la sesión expiró: vuelve a leer las cookies del navegador y revalida.
+    Llámala después de iniciar_sesion (cuando el usuario avise que ya entró), con el mismo
+    `navegador`. Sin `navegador` revisa todos los compatibles. `perfil` sirve si el usuario
+    tiene varios perfiles en ese navegador (nombre o parte de él).
+    Si falla, el error dice qué encontró en cada navegador y perfil: muéstraselo al usuario y
+    sigue la sugerencia. No reintentes igual sin que algo cambie.
     """
     global _client_mtime
     try:
-        n = auth.importar_sesion()
+        cand = auth.importar_sesion(navegador, perfil, validar=validar_cookies)
+    except navegadores.NavegadorDesconocido as e:
+        raise ToolError(str(e)) from e
     except auth.LoginError as e:
         raise ToolError(str(e)) from e
     _client_mtime = None  # fuerza recrear el cliente con las cookies nuevas
-    try:
-        client().user_id  # lanza SessionExpired si las cookies no sirven (no entró o caducaron)
-    except SessionExpired as e:
-        raise ToolError(
-            f"Importé {n} cookies del navegador, pero U-Cursos no las reconoce. "
-            "¿El usuario terminó de iniciar sesión? Que entre en el navegador y vuelve a llamarme."
-        ) from e
-    return "Sesión activa. Ya puedes usar las demás tools."
+    return f"Sesión activa, importada desde {cand.perfil.descripcion}. Ya puedes usar las demás tools."
 
 
 @mcp.tool(annotations=SOLO_LECTURA)
