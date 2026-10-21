@@ -1,8 +1,9 @@
 # Arma la extensión de Claude Desktop (.mcpb) y la adjunta al release.
 # Para publicar una versión: sube la versión en manifest.json y pyproject.toml,
 # y crea un tag (ej. v0.2.0) o un release en GitHub.
-# En cada pull request corre los tests y deja el .mcpb como artefacto (sin release),
-# para instalarlo y probarlo con PRUEBAS.md antes de mergear.
+# En cada pull request corre los tests y deja el .mcpb como artefacto (sin release).
+# Versiones de prueba: un tag con guion (ej. v0.6.0-beta.1) sale como prerelease, así se
+# prueba desde Releases sin terminal y no aparece como "última versión".
 name: Release extensión
 
 on:
@@ -47,3 +48,5 @@ jobs:
         uses: softprops/action-gh-release@v2
         with:
           files: ucursos.mcpb
+          prerelease: ${{ contains(github.ref_name, '-') }}
+          generate_release_notes: true

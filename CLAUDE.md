@@ -50,7 +50,7 @@ uv run python scripts/capturar_html.py <ruta> <nombre>   # fixture anonimizado
 npx @anthropic-ai/mcpb pack . ucursos.mcpb     # armar la extensión de Claude Desktop
 ```
 
-Al subir de versión, cambiarla en `manifest.json` y `pyproject.toml` a la vez.
+Al subir de versión, cambiarla en `manifest.json` y `pyproject.toml` a la vez. Versiones de prueba: `0.6.0-beta.N` en manifest y `0.6.0bN` en pyproject, y tag `v0.6.0-beta.N` (sale como prerelease). El usuario prueba cada beta desde Releases sin terminal; no pedirle comandos.
 
 `.mcp.json` registra el server en Claude Code (`ucursos`), así que dentro de este proyecto Claude puede llamar las tools directamente para probarlas.
 

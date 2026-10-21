@@ -1,6 +1,6 @@
 [project]
 name = "ucursos-mcp"
-version = "0.6.0"
+version = "0.6.0b1"
 description = "Servidor MCP de solo lectura para U-Cursos (Universidad de Chile)"
 readme = "README.md"
 license = "MIT"

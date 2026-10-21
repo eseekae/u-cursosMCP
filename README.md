@@ -102,11 +102,12 @@ El workflow `.github/workflows/release.yml` la arma y la adjunta sola al crear u
 
 ### Probar un pull request
 
-Cada PR corre los tests y arma la extensión. Para probarla sin esperar un release:
+Las versiones de prueba se publican en [Releases](https://github.com/eseekae/u-cursosMCP/releases) como **Pre-release** (ej. `v0.6.0-beta.1`), sin necesidad de terminal:
 
-1. En el PR, pestaña **Checks** → *Release extensión* → **Summary**, baja el artefacto `ucursos-mcpb` (es un `.zip` con `ucursos.mcpb` adentro).
-2. Instálalo en Claude Desktop como en la sección de arriba (reemplaza la versión anterior).
-3. Sigue [`PRUEBAS.md`](PRUEBAS.md) y reporta en el PR con la plantilla del final.
+1. Baja `ucursos.mcpb` de la prerelease más nueva e instálalo en Claude Desktop como en la sección de arriba (reemplaza la versión anterior; en Extensiones se ve el número de beta).
+2. Sigue [`PRUEBAS.md`](PRUEBAS.md) y reporta qué pasó con la plantilla del final.
+
+Cada PR además corre los tests y deja el `.mcpb` como artefacto en la pestaña **Checks**.
 
 Si un parser falla, captura la página con `scripts/capturar_html.py` y sigue la skill `arreglar-parser`.
 
