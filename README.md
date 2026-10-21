@@ -1,6 +1,6 @@
 # ucursos-mcp
 
-Servidor MCP **de solo lectura** para que Claude lea tu U-Cursos (Universidad de Chile): cursos, tareas, notas, novedades y el contenido del material docente (PDF, Word y PowerPoint).
+Servidor MCP **de solo lectura** para que Claude lea tu U-Cursos (Universidad de Chile): cursos, tareas (con su enunciado y adjuntos), notas, novedades y el contenido del material docente (PDF, Word y PowerPoint).
 
 No es oficial ni está afiliado a la Universidad. Es open source (MIT): úsalo, modifícalo y mejóralo.
 
@@ -21,6 +21,9 @@ Funciona con Firefox, Zen, LibreWolf, Edge, Chrome, Brave, Opera, Opera GX, Viva
 ### Qué puedes pedirle
 
 - "¿Qué tareas tengo pendientes esta semana?"
+- "¿Qué entregué en Programación y con qué nota?"
+- "¿De qué se trata la tarea 3 de Programación? Lee el enunciado"
+- "Muéstrame solo las ayudantías de Cálculo"
 - "Muéstrame las últimas novedades de Cálculo"
 - "¿Qué material docente hay en Física?"
 - "Lee la guía 3 de Física y explícame el ejercicio 2"
@@ -33,6 +36,7 @@ Funciona con Firefox, Zen, LibreWolf, Edge, Chrome, Brave, Opera, Opera GX, Viva
 - Solo se guardan las cookies de la sesión, en tu computador (`~/.ucursos-mcp/`). No se envían a ningún servidor aparte de U-Cursos.
 - Ninguna tool entrega tareas, publica ni modifica nada en U-Cursos.
 - Solo lee los cursos en que estás inscrito.
+- Los enunciados, comentarios, novedades y archivos se le entregan a Claude como datos, con un aviso de que no son instrucciones: si un enunciado trae texto dirigido a Claude, no lo sigue y te avisa.
 - Los archivos descargados quedan en tu carpeta `Descargas/U-Cursos`.
 
 ## Tools
@@ -42,12 +46,15 @@ Funciona con Firefox, Zen, LibreWolf, Edge, Chrome, Brave, Opera, Opera GX, Viva
 | `iniciar_sesion(navegador=None)` | Abre U-Cursos en ese navegador (o el último que funcionó, o el por defecto) para que entres |
 | `estado_sesion(navegador=None, perfil=None)` | Importa la sesión de ese navegador, la valida perfil por perfil y, si falla, explica qué encontró |
 | `listar_cursos()` | Cursos inscritos, con su `path` |
-| `tareas(solo_pendientes=True)` | Tareas de todos los cursos |
+| `tareas(curso_path=None, solo_pendientes=True, desde=None, hasta=None, solo_semestre_actual=True)` | Tareas con curso, `id`, plazo ISO 8601 (hora de Chile) y estado normalizado (pendiente, entregada, atrasada, cerrada), ordenadas por plazo |
+| `detalle_tarea(curso_path, tarea_id)` | Enunciado, apertura y cierre, estado, nota, comentarios, adjuntos y archivos entregados |
 | `notas(curso_path)` | Tablas de notas del curso |
-| `material_docente(curso_path)` | Lista de material |
-| `leer_material(curso_path, descarga, desde=0)` | Texto de un PDF, .docx, .pptx o archivo de texto, por partes |
-| `descargar_material(curso_path, descarga)` | Baja un archivo a `Descargas/U-Cursos` |
-| `novedades(curso_path, limite=10)` | Últimos anuncios |
+| `material_docente(curso_path, categoria=None)` | Lista de material con su categoría (Ayudantías, Pautas, Clases...) |
+| `leer_material(curso_path, descarga, desde=0)` | Texto de un PDF, .docx, .pptx o archivo de texto (material o adjunto de tarea), por partes |
+| `descargar_material(curso_path, descarga)` | Baja un archivo (material o adjunto de tarea) a `Descargas/U-Cursos` |
+| `novedades(curso_path, limite=10)` | Últimos anuncios, con texto completo y enlaces |
+
+Si una sección no existe o da 403 (por ejemplo en una comunidad), el error dice qué secciones sí tiene ese curso.
 
 ## Para desarrolladores
 
@@ -92,6 +99,16 @@ npx @anthropic-ai/mcpb pack . ucursos.mcpb
 ```
 
 El workflow `.github/workflows/release.yml` la arma y la adjunta sola al crear un tag `v*`.
+
+### Probar un pull request
+
+Cada PR corre los tests y arma la extensión. Para probarla sin esperar un release:
+
+1. En el PR, pestaña **Checks** → *Release extensión* → **Summary**, baja el artefacto `ucursos-mcpb` (es un `.zip` con `ucursos.mcpb` adentro).
+2. Instálalo en Claude Desktop como en la sección de arriba (reemplaza la versión anterior).
+3. Sigue [`PRUEBAS.md`](PRUEBAS.md) y reporta en el PR con la plantilla del final.
+
+Si un parser falla, captura la página con `scripts/capturar_html.py` y sigue la skill `arreglar-parser`.
 
 ### Variables de entorno
 
