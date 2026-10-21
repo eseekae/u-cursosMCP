@@ -27,7 +27,8 @@ src/ucursos_mcp/
   models.py   DTOs pydantic
   server.py   tools MCP (MCPServer, patrón Facade). Errores esperables -> ToolError (decorador errores_legibles)
 mcpb_server.py             entrada de la extensión (Claude Desktop corre `uv run --directory <ext> mcpb_server.py`)
-manifest.json, .mcpbignore extensión .mcpb; el workflow release.yml la arma al crear un tag v*
+manifest.json, .mcpbignore extensión .mcpb; el workflow release.yml la arma al crear un tag v* y en cada PR (artefacto)
+PRUEBAS.md                 pruebas manuales en Claude Desktop; actualizarla al agregar o cambiar tools
 scripts/capturar_html.py   baja una página con la sesión y la guarda anonimizada en tests/fixtures/
 tests/test_parsers.py      tests sintéticos + tests sobre fixtures reales si existen
 tests/test_documentos.py   extracción de texto con archivos armados en memoria

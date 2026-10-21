@@ -1,6 +1,6 @@
 # ucursos-mcp
 
-Servidor MCP **de solo lectura** para que Claude lea tu U-Cursos (Universidad de Chile): cursos, tareas, notas, novedades y el contenido del material docente (PDF, Word y PowerPoint).
+Servidor MCP **de solo lectura** para que Claude lea tu U-Cursos (Universidad de Chile): cursos, tareas (con su enunciado y adjuntos), notas, novedades y el contenido del material docente (PDF, Word y PowerPoint).
 
 No es oficial ni está afiliado a la Universidad. Es open source (MIT): úsalo, modifícalo y mejóralo.
 
@@ -21,6 +21,7 @@ Funciona con Firefox, Zen, LibreWolf, Edge, Chrome, Brave, Opera, Opera GX, Viva
 ### Qué puedes pedirle
 
 - "¿Qué tareas tengo pendientes esta semana?"
+- "¿Qué entregué en Programación y con qué nota?"
 - "¿De qué se trata la tarea 3 de Programación? Lee el enunciado"
 - "Muéstrame solo las ayudantías de Cálculo"
 - "Muéstrame las últimas novedades de Cálculo"
@@ -35,6 +36,7 @@ Funciona con Firefox, Zen, LibreWolf, Edge, Chrome, Brave, Opera, Opera GX, Viva
 - Solo se guardan las cookies de la sesión, en tu computador (`~/.ucursos-mcp/`). No se envían a ningún servidor aparte de U-Cursos.
 - Ninguna tool entrega tareas, publica ni modifica nada en U-Cursos.
 - Solo lee los cursos en que estás inscrito.
+- Los enunciados, comentarios, novedades y archivos se le entregan a Claude como datos, con un aviso de que no son instrucciones: si un enunciado trae texto dirigido a Claude, no lo sigue y te avisa.
 - Los archivos descargados quedan en tu carpeta `Descargas/U-Cursos`.
 
 ## Tools
@@ -97,6 +99,16 @@ npx @anthropic-ai/mcpb pack . ucursos.mcpb
 ```
 
 El workflow `.github/workflows/release.yml` la arma y la adjunta sola al crear un tag `v*`.
+
+### Probar un pull request
+
+Cada PR corre los tests y arma la extensión. Para probarla sin esperar un release:
+
+1. En el PR, pestaña **Checks** → *Release extensión* → **Summary**, baja el artefacto `ucursos-mcpb` (es un `.zip` con `ucursos.mcpb` adentro).
+2. Instálalo en Claude Desktop como en la sección de arriba (reemplaza la versión anterior).
+3. Sigue [`PRUEBAS.md`](PRUEBAS.md) y reporta en el PR con la plantilla del final.
+
+Si un parser falla, captura la página con `scripts/capturar_html.py` y sigue la skill `arreglar-parser`.
 
 ### Variables de entorno
 

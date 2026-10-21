@@ -24,10 +24,11 @@ Si la vista carga datos por AJAX (`?accion=...&_ajax=...`), revisar si ese endpo
 
 ## 2. Implementar por capas (en este orden)
 
-1. **`models.py`**: un modelo pydantic con los campos elegidos. Fechas como texto tal cual las muestra U-Cursos, salvo que se necesite comparar.
+1. **`models.py`**: un modelo pydantic con los campos elegidos. Fechas en ISO 8601 con `parsers.fecha_iso` (zona America/Santiago; entiende "06/11/2026 23:59" y "24 de Agosto a las 22:26"). Si el texto original puede servir, guardarlo aparte (como `estado_texto` en `Tarea`).
+   - Si la tool devuelve texto escrito por el curso (enunciados, posts, archivos), agregar `"aviso": AVISO_CONTENIDO` a la respuesta.
 2. **`parsers.py`**: `parse_<servicio>(html) -> list[Modelo]`. Devolver `[]` si no encuentra la estructura; nunca explotar.
 3. **`client.py`**: solo si la ruta no se arma con `servicio_curso(curso_path, servicio)` o con `/usuario/{user_id}/...`.
-4. **`server.py`**: la tool con `@mcp.tool()`.
+4. **`server.py`**: la tool con `@mcp.tool()`. Pedir la página con `servicio(path, nombre)`, no con `client().servicio_curso`: ante un 403/404 dice qué secciones sí tiene el curso.
    - Docstring en español, una línea clara: Claude decide cuándo usarla leyendo eso.
    - Parámetros simples (`curso_path: str`, `limite: int = 10`).
    - Devolver `list[dict]` con `model_dump()`.
@@ -49,6 +50,7 @@ O en Claude Code, con `.mcp.json` ya configurado: pedirle a Claude que use la to
 
 ## 5. Documentar
 
-- Fila nueva en la tabla de tools de `README.md`.
+- Fila nueva en la tabla de tools de `README.md` y en `tools` de `manifest.json`.
+- Una prueba en `PRUEBAS.md` (y corregir ahí el número de tools).
 - Sacar el ítem de "Pendiente" en `CLAUDE.md` si estaba ahí.
 - Commit con mensaje en español: `Agrega tool <nombre>`.
