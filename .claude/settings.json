@@ -1,0 +1,19 @@
+{
+  "permissions": {
+    "allow": [
+      "Bash(uv run pytest:*)",
+      "Bash(uv run python scripts/capturar_html.py:*)",
+      "Bash(uv pip install:*)",
+      "Bash(git status:*)",
+      "Bash(git diff:*)"
+    ],
+    "deny": [
+      "Read(./.session/**)",
+      "Read(~/.ucursos-mcp/**)",
+      "Edit(~/.ucursos-mcp/**)",
+      "Edit(./.session/**)",
+      "Read(./descargas/**)"
+    ]
+  },
+  "enableAllProjectMcpServers": true
+}

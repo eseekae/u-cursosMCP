@@ -1,0 +1,67 @@
+# Pruebas manuales en Claude Desktop
+
+Guía para probar la extensión a mano. Hazlas en orden: cada una depende de la anterior.
+Usa **un chat nuevo** para cada prueba, así Claude no arrastra lo anterior.
+
+Al reportar un problema: qué escribiste, qué hizo Claude (qué tool llamó y qué devolvió) y qué esperabas.
+**No pegues capturas con nombres, RUT o notas de otras personas.**
+
+Si algo falla al arrancar, el log está en Claude Desktop: Configuración → Desarrollador (o Extensiones) → U-Cursos → abrir logs.
+
+## 1. Instalación
+
+- **Haz:** Configuración → Extensiones, arrastra `ucursos.mcpb` e instala.
+- **Esperado:** aparece "U-Cursos (solo lectura)" activada, sin error. En un chat, el ícono de herramientas muestra 8 tools.
+- **Anota:** cuánto tardó la primera vez y si salió algún error.
+
+## 2. Login
+
+- **Escribe:** `¿Tengo sesión activa en U-Cursos?`
+- **Esperado:** Claude llama `estado_sesion`, ve que no hay sesión y llama `iniciar_sesion`. Se abre Edge en U-Cursos (sin ventana negra de consola). Entras con tu cuenta, le dices `listo` y Claude confirma "Sesión activa".
+- **Anota:** si se abrió Edge, si el reCAPTCHA pasó y si Claude esperó tu aviso o se adelantó.
+
+## 3. Mis cursos
+
+- **Escribe:** `Lista mis cursos de U-Cursos de este semestre`
+- **Esperado:** los mismos ramos que ves en la barra lateral de U-Cursos, con código y sección correctos.
+- **Anota:** ramos que falten o sobren, y si los nombres salen con tildes bien (no `Ã³`).
+
+## 4. Tareas
+
+- **Escribe:** `¿Qué tareas tengo pendientes?` y después `Muéstrame todas, también las entregadas`
+- **Esperado:** coincide con la página "Tareas" de U-Cursos: título, ramo, fecha límite y estado.
+- **Anota:** cualquier diferencia. Este parser está sin validar con HTML real, así que es probable que falle.
+
+## 5. Material docente y descarga
+
+- **Escribe:** `¿Qué material docente hay en <ramo>?` y luego `Descarga <nombre de un archivo>`
+- **Esperado:** la lista coincide con la página del ramo. El archivo queda en `Descargas/U-Cursos` y se abre bien (nombre con tildes incluido).
+- **Anota:** si faltan archivos, si salen las categorías como si fueran archivos, o si la descarga queda corrupta.
+
+## 6. Novedades y notas
+
+- **Escribe:** `Muéstrame las últimas 3 novedades de <ramo>` y `¿Cómo voy con las notas de <ramo>?` (uno con notas publicadas)
+- **Esperado:** títulos, fechas y texto igual que en U-Cursos; las notas como tabla con las mismas evaluaciones.
+- **Anota:** diferencias. El parser de novedades también está sin validar.
+
+## 7. Sesión guardada
+
+- **Haz:** cierra Claude Desktop por completo (también desde la bandeja del sistema), ábrelo y en un chat nuevo escribe `¿Qué tareas tengo pendientes?`
+- **Esperado:** responde directo, sin pedirte login otra vez.
+
+## 8. Casos raros
+
+- **Escribe:** `Muéstrame las notas de MA9999` (un ramo que no existe)
+  - **Esperado:** Claude dice que no lo encuentra; no se cae ni inventa notas.
+- **Escribe:** `Publica "hola" en el foro de <ramo>`
+  - **Esperado:** Claude dice que no puede, porque el MCP es solo de lectura.
+
+## Plantilla de reporte
+
+```
+Prueba N:
+Resultado: OK / Falla
+Qué escribí:
+Qué hizo Claude (tool y respuesta):
+Qué esperaba:
+```

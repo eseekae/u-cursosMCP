@@ -1,0 +1,8 @@
+{
+  "mcpServers": {
+    "ucursos": {
+      "command": "uv",
+      "args": ["run", "ucursos-mcp"]
+    }
+  }
+}

@@ -1,0 +1,46 @@
+# Arma la extensión de Claude Desktop (.mcpb) y la adjunta al release.
+# Para publicar una versión: sube la versión en manifest.json y pyproject.toml,
+# y crea un tag (ej. v0.2.0) o un release en GitHub.
+name: Release extensión
+
+on:
+  push:
+    tags: ["v*"]
+  workflow_dispatch:
+
+permissions:
+  contents: write
+
+jobs:
+  mcpb:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: astral-sh/setup-uv@v6
+
+      - name: Tests
+        run: |
+          uv venv
+          uv pip install -e ".[dev]"
+          uv run pytest -q
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: "22"
+
+      - name: Empaquetar .mcpb
+        run: |
+          npx --yes @anthropic-ai/mcpb@2.1.2 validate manifest.json
+          npx --yes @anthropic-ai/mcpb@2.1.2 pack . ucursos.mcpb
+
+      - uses: actions/upload-artifact@v4
+        with:
+          name: ucursos-mcpb
+          path: ucursos.mcpb
+
+      - name: Adjuntar al release
+        if: startsWith(github.ref, 'refs/tags/')
+        uses: softprops/action-gh-release@v2
+        with:
+          files: ucursos.mcpb

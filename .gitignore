@@ -1,0 +1,19 @@
+# Sesión de U-Cursos: contiene cookies de tu cuenta. NUNCA subir.
+.session/
+*.storage_state.json
+
+# Python
+__pycache__/
+*.pyc
+.venv/
+dist/
+.env
+
+# Material descargado por la tool descargar_material
+descargas/
+
+# Claude Code: configuración personal (la del proyecto sí se versiona)
+.claude/settings.local.json
+
+# Extensión empaquetada (se publica en Releases, no en el repo)
+*.mcpb

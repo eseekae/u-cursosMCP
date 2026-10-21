@@ -1,0 +1,18 @@
+# Solo van al .mcpb: manifest.json, pyproject.toml, uv.lock, README.md, LICENSE, mcpb_server.py y src/
+.git/
+.github/
+.claude/
+.venv/
+.session/
+.pytest_cache/
+**/__pycache__/
+*.pyc
+tests/
+scripts/
+descargas/
+dist/
+*.mcpb
+.mcp.json
+CLAUDE.md
+.gitignore
+.mcpbignore

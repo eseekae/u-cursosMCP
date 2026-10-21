@@ -1,0 +1,44 @@
+{
+  "manifest_version": "0.4",
+  "name": "ucursos",
+  "display_name": "U-Cursos (solo lectura)",
+  "version": "0.2.0",
+  "description": "Deja que Claude lea tus cursos de U-Cursos (Universidad de Chile): tareas, notas, material docente y novedades.",
+  "long_description": "Servidor MCP no oficial y de solo lectura para U-Cursos. Nunca entrega tareas, publica ni modifica nada. Para entrar, Claude abre una ventana de Edge o Chrome donde tú escribes tu clave; Claude nunca la ve. Las cookies de la sesión quedan solo en tu computador.",
+  "author": {
+    "name": "Contribuidores de u-cursosMCP",
+    "url": "https://github.com/eseekae/u-cursosMCP"
+  },
+  "repository": {
+    "type": "git",
+    "url": "https://github.com/eseekae/u-cursosMCP"
+  },
+  "homepage": "https://github.com/eseekae/u-cursosMCP",
+  "support": "https://github.com/eseekae/u-cursosMCP/issues",
+  "server": {
+    "type": "uv",
+    "entry_point": "mcpb_server.py",
+    "mcp_config": {
+      "command": "uv",
+      "args": ["run", "--directory", "${__dirname}", "mcpb_server.py"]
+    }
+  },
+  "tools": [
+    {"name": "iniciar_sesion", "description": "Abre el navegador para que entres a U-Cursos"},
+    {"name": "estado_sesion", "description": "Revisa si la sesión sigue activa"},
+    {"name": "listar_cursos", "description": "Cursos en los que estás inscrito"},
+    {"name": "tareas", "description": "Tareas de todos tus cursos"},
+    {"name": "notas", "description": "Notas de un curso"},
+    {"name": "material_docente", "description": "Material docente de un curso"},
+    {"name": "novedades", "description": "Anuncios de un curso"},
+    {"name": "descargar_material", "description": "Descarga un archivo a tu carpeta Descargas/U-Cursos"}
+  ],
+  "compatibility": {
+    "platforms": ["win32", "darwin", "linux"],
+    "runtimes": {
+      "python": ">=3.11"
+    }
+  },
+  "keywords": ["u-cursos", "uchile", "universidad de chile", "estudiantes", "lms"],
+  "license": "MIT"
+}
