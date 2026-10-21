@@ -2,7 +2,7 @@
   "manifest_version": "0.4",
   "name": "ucursos",
   "display_name": "U-Cursos (solo lectura)",
-  "version": "0.5.0",
+  "version": "0.6.0",
   "description": "Deja que Claude lea tus cursos de U-Cursos (Universidad de Chile): tareas, notas, novedades y el contenido del material docente.",
   "long_description": "Servidor MCP no oficial y de solo lectura para U-Cursos. Nunca entrega tareas, publica ni modifica nada. Para entrar, Claude abre U-Cursos en tu navegador de siempre (Firefox, Zen, Edge, Chrome, Brave...) y tú inicias sesión ahí; Claude nunca ve tu clave e importa la sesión desde ese navegador. Las cookies de la sesión quedan solo en tu computador.",
   "author": {
@@ -43,7 +43,11 @@
     },
     {
       "name": "tareas",
-      "description": "Tareas de todos tus cursos"
+      "description": "Tareas del semestre con curso, plazo y estado, ordenadas por plazo"
+    },
+    {
+      "name": "detalle_tarea",
+      "description": "Enunciado, fechas, nota, comentarios y archivos de una tarea"
     },
     {
       "name": "notas",
@@ -51,11 +55,11 @@
     },
     {
       "name": "material_docente",
-      "description": "Material docente de un curso"
+      "description": "Material docente de un curso, por categoría"
     },
     {
       "name": "leer_material",
-      "description": "Lee el texto de un PDF, Word o PowerPoint del curso"
+      "description": "Lee el texto de un PDF, Word o PowerPoint del curso o de una tarea"
     },
     {
       "name": "novedades",

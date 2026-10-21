@@ -21,6 +21,8 @@ Funciona con Firefox, Zen, LibreWolf, Edge, Chrome, Brave, Opera, Opera GX, Viva
 ### Qué puedes pedirle
 
 - "¿Qué tareas tengo pendientes esta semana?"
+- "¿De qué se trata la tarea 3 de Programación? Lee el enunciado"
+- "Muéstrame solo las ayudantías de Cálculo"
 - "Muéstrame las últimas novedades de Cálculo"
 - "¿Qué material docente hay en Física?"
 - "Lee la guía 3 de Física y explícame el ejercicio 2"
@@ -42,12 +44,15 @@ Funciona con Firefox, Zen, LibreWolf, Edge, Chrome, Brave, Opera, Opera GX, Viva
 | `iniciar_sesion(navegador=None)` | Abre U-Cursos en ese navegador (o el último que funcionó, o el por defecto) para que entres |
 | `estado_sesion(navegador=None, perfil=None)` | Importa la sesión de ese navegador, la valida perfil por perfil y, si falla, explica qué encontró |
 | `listar_cursos()` | Cursos inscritos, con su `path` |
-| `tareas(solo_pendientes=True)` | Tareas de todos los cursos |
+| `tareas(curso_path=None, solo_pendientes=True, desde=None, hasta=None, solo_semestre_actual=True)` | Tareas con curso, `id`, plazo ISO 8601 (hora de Chile) y estado normalizado (pendiente, entregada, atrasada, cerrada), ordenadas por plazo |
+| `detalle_tarea(curso_path, tarea_id)` | Enunciado, apertura y cierre, estado, nota, comentarios, adjuntos y archivos entregados |
 | `notas(curso_path)` | Tablas de notas del curso |
-| `material_docente(curso_path)` | Lista de material |
-| `leer_material(curso_path, descarga, desde=0)` | Texto de un PDF, .docx, .pptx o archivo de texto, por partes |
-| `descargar_material(curso_path, descarga)` | Baja un archivo a `Descargas/U-Cursos` |
-| `novedades(curso_path, limite=10)` | Últimos anuncios |
+| `material_docente(curso_path, categoria=None)` | Lista de material con su categoría (Ayudantías, Pautas, Clases...) |
+| `leer_material(curso_path, descarga, desde=0)` | Texto de un PDF, .docx, .pptx o archivo de texto (material o adjunto de tarea), por partes |
+| `descargar_material(curso_path, descarga)` | Baja un archivo (material o adjunto de tarea) a `Descargas/U-Cursos` |
+| `novedades(curso_path, limite=10)` | Últimos anuncios, con texto completo y enlaces |
+
+Si una sección no existe o da 403 (por ejemplo en una comunidad), el error dice qué secciones sí tiene ese curso.
 
 ## Para desarrolladores
 

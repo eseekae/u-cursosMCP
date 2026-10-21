@@ -15,15 +15,51 @@ class Curso(BaseModel):
     path: str            # ej: ingenieria/2026/2/CC1002/7  (clave para el resto de tools)
 
 
+class CursoRef(BaseModel):
+    """Curso al que pertenece una tarea. `path` puede venir vacío si solo se supo el nombre."""
+    nombre: str = ""
+    codigo: str = ""
+    path: str = ""
+
+
 class Tarea(BaseModel):
+    id: str | None             # se pasa a detalle_tarea
     titulo: str
-    curso: str
-    fecha_limite: str    # texto tal cual lo muestra U-Cursos ("06/11/2026 23:59")
-    estado: str          # "En Plazo", "Entregada", etc.
+    curso: CursoRef | None
+    url: str | None            # ruta de la tarea en U-Cursos (/inst/año/sem/código/sección/tareas/...)
+    fecha_limite: str | None   # ISO 8601 con zona de Santiago ("2026-11-06T23:59:00-03:00"), o solo fecha
+    estado: str                # pendiente, entregada, atrasada, cerrada o desconocido
+    fecha_entrega: str | None  # ISO 8601, si ya entregaste
+    con_atraso: bool | None    # si la entrega fue fuera de plazo (None si no hay entrega)
+    estado_texto: str          # texto original de U-Cursos, por si la normalización se equivoca
+
+
+class Archivo(BaseModel):
+    nombre: str
+    descarga: str        # se pasa a leer_material o descargar_material
+
+
+class DetalleTarea(BaseModel):
+    id: str | None
+    titulo: str
+    url: str
+    enunciado: str
+    fecha_apertura: str | None
+    fecha_cierre: str | None
+    estado: str
+    estado_texto: str
+    fecha_entrega: str | None
+    con_atraso: bool | None
+    nota: str | None
+    comentarios: str | None
+    adjuntos: list[Archivo]     # archivos del enunciado
+    entregados: list[Archivo]   # lo que entregó el usuario
+    campos: dict[str, str]      # todos los pares "etiqueta: valor" de la página, tal cual
 
 
 class Material(BaseModel):
-    numero: str
+    categoria: str       # carpeta de U-Cursos (Ayudantías, Pautas, ...); "" si no hay
+    numero: str          # se reinicia en cada categoría
     titulo: str
     autor: str
     fecha: str
@@ -34,7 +70,8 @@ class Novedad(BaseModel):
     titulo: str
     autor: str
     fecha: str
-    resumen: str
+    texto: str
+    enlaces: list[str]
 
 
 class TablaNotas(BaseModel):

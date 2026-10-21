@@ -27,7 +27,9 @@ Rutas típicas (el `me` se reemplaza solo por el hash del usuario):
 | Tool | Ruta | Nombre de fixture |
 |---|---|---|
 | listar_cursos | `/usuario/me/mis_canales/` | `home` |
-| tareas | `/usuario/me/tareas_usuario/` | `tareas_usuario` |
+| tareas (respaldo) | `/usuario/me/tareas_usuario/` | `tareas_usuario` |
+| tareas | `<curso_path>/tareas/` | `tareas` |
+| detalle_tarea | la `url` que devuelve tareas | `detalle_tarea` |
 | notas | `<curso_path>/notas/` | `notas` |
 | material_docente | `<curso_path>/material_docente/` | `material_docente` |
 | novedades | `<curso_path>/novedades/` | `novedades` |
