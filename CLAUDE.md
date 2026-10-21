@@ -7,6 +7,7 @@ Proyecto open source hecho por estudiantes de la FCFM. Responder en español chi
 ## Reglas (no negociables)
 
 - **Solo lectura.** Nunca agregar tools que entreguen tareas, publiquen en foros, manden correos o modifiquen nada en U-Cursos.
+- **Solo cursos inscritos.** Toda tool que reciba `curso_path` pasa por `curso_inscrito()` (server.py), y las descargas por `ruta_descarga()`. No agregar acceso a secciones o semestres donde el usuario no está inscrito.
 - **Nunca leer, imprimir ni commitear la sesión** (`~/.ucursos-mcp/` o el antiguo `.session/`: son las cookies de su cuenta). `settings.json` lo bloquea; no intentar rodearlo.
 - **Nunca automatizar el login** ni pedirle la clave. El login es manual porque Cuenta UChile tiene reCAPTCHA: la tool `iniciar_sesion` (o `ucursos-login`) solo abre Edge/Chrome y el usuario escribe su clave ahí.
 - **No commitear datos de terceros**: nombres, RUT, correos o notas de otras personas. Los fixtures se anonimizan y se revisan antes de commitear.
@@ -20,12 +21,15 @@ src/ucursos_mcp/
   auth.py     login manual con Playwright (Edge/Chrome instalado) -> ~/.ucursos-mcp/ucursos.storage_state.json
   client.py   httpx con esas cookies; decodifica ISO-8859-1; lanza SessionExpired
   parsers.py  HTML -> modelos. ÚNICA capa que conoce el HTML de U-Cursos
+  documentos.py  archivo descargado -> texto (pypdf, python-docx, python-pptx). No sabe de U-Cursos
   models.py   DTOs pydantic
   server.py   tools MCP (MCPServer, patrón Facade). Errores esperables -> ToolError (decorador errores_legibles)
 mcpb_server.py             entrada de la extensión (Claude Desktop corre `uv run --directory <ext> mcpb_server.py`)
 manifest.json, .mcpbignore extensión .mcpb; el workflow release.yml la arma al crear un tag v*
 scripts/capturar_html.py   baja una página con la sesión y la guarda anonimizada en tests/fixtures/
 tests/test_parsers.py      tests sintéticos + tests sobre fixtures reales si existen
+tests/test_documentos.py   extracción de texto con archivos armados en memoria
+tests/test_server.py       errores legibles, cursos inscritos, rutas de descarga, paginación
 ```
 
 Si U-Cursos cambia el diseño, se toca **solo `parsers.py`**.

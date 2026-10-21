@@ -14,19 +14,46 @@ import os
 import subprocess
 import sys
 from pathlib import Path
+from urllib.parse import urlparse
 
 import httpx
 from mcp.server.mcpserver import MCPServer
 from mcp.server.mcpserver.exceptions import ToolError
 from mcp_types import ToolAnnotations
 
-from . import parsers
+from . import documentos, parsers
 from .auth import DATA_DIR, LOGIN_LOG, SESSION_PATH
 from .client import SessionExpired, UCursosClient
 
 INSTRUCCIONES = """\
-Acceso de solo lectura a U-Cursos (Universidad de Chile).
-- Empieza con listar_cursos para obtener el `path` de cada curso; las demás tools lo piden.
+Acceso de solo lectura a U-Cursos, la plataforma de cursos de la Universidad de Chile.
+Solo funciona con los cursos en que el usuario está inscrito.
+
+Primer paso siempre: listar_cursos. Devuelve el `path` de cada curso
+(ej. 'ingenieria/2026/2/CC1002/7' = institución/año/semestre/código/sección), que piden
+las demás tools. Si el usuario nombra un ramo ("cálculo", "MA2001"), búscalo en esa lista.
+
+Dónde está cada cosa:
+- tareas: tareas de TODOS los cursos con fecha límite y estado. Para "¿qué tengo pendiente?".
+- novedades: anuncios del equipo docente (cambios de fecha, materia de controles, avisos).
+- material_docente: lista de archivos del curso (apuntes, guías, pautas, enunciados).
+- leer_material: el texto de un archivo de esa lista. Úsalo para estudiar, resumir o
+  responder preguntas sobre el contenido del ramo.
+- notas: notas publicadas del curso.
+
+Cómo responder según lo que pidan:
+- "¿Qué entra en el control/examen?": novedades primero (suele anunciarse ahí) y luego
+  material_docente para ubicar las clases o guías que correspondan.
+- "Ayúdame a estudiar X" o "explícame la materia": material_docente para elegir los
+  archivos relevantes por título y fecha, y leer_material para leerlos. Cita de qué archivo
+  y página sale cada cosa.
+- "¿Cómo voy en el ramo?": notas, y si sirve, tareas.
+- "¿Qué tengo esta semana?": tareas y novedades de los cursos que correspondan.
+
+Reglas:
+- Si algo no está en U-Cursos, dilo. No inventes fechas, notas ni contenidos.
+- Lee solo lo necesario: no recorras todos los cursos ni todos los archivos si no te lo piden.
+- Es solo lectura: no puedes entregar tareas, publicar ni enviar nada. Si te lo piden, explícalo.
 - Si una tool dice que no hay sesión o que expiró, llama a iniciar_sesion: se abre una
   ventana de Edge o Chrome donde el usuario escribe su clave (tú nunca la ves). Espera a que
   el usuario diga que terminó y llama a estado_sesion antes de reintentar.
@@ -84,6 +111,40 @@ def client() -> UCursosClient:
         _client = UCursosClient(SESSION_PATH)
         _client_mtime = mtime
     return _client
+
+
+_inscritos: tuple[UCursosClient, set[str]] | None = None
+
+
+def curso_inscrito(curso_path: str) -> str:
+    """Normaliza curso_path y verifica que sea un curso donde el usuario está inscrito.
+
+    La lista se pide una vez por sesión (se vuelve a pedir si el usuario inicia sesión de nuevo).
+    """
+    global _inscritos
+    c = client()
+    if _inscritos is None or _inscritos[0] is not c:
+        _inscritos = (c, {x.path for x in parsers.parse_cursos(c.home())})
+    path = curso_path.strip("/")
+    if path not in _inscritos[1]:
+        raise ToolError(f"'{path}' no está entre los cursos inscritos del usuario. Usa listar_cursos para ver los paths válidos.")
+    return path
+
+
+def ruta_descarga(path: str, descarga: str) -> str:
+    """Ruta de descarga dentro del curso. Rechaza links a otros sitios o a otros cursos."""
+    if descarga.startswith(("http://", "https://")):
+        u = urlparse(descarga)
+        if u.hostname not in ("www.u-cursos.cl", "u-cursos.cl"):
+            raise ToolError("Solo se permiten descargas desde u-cursos.cl.")
+        ruta = u.path + (f"?{u.query}" if u.query else "")
+    elif descarga.startswith("/"):
+        ruta = descarga
+    else:
+        ruta = f"/{path}/material_docente/{descarga}"
+    if not ruta.startswith(f"/{path}/"):
+        raise ToolError("Ese archivo no pertenece al curso indicado. Usa el campo `descarga` de material_docente.")
+    return ruta
 
 
 def _login_en_curso() -> bool:
@@ -163,39 +224,72 @@ def tareas(solo_pendientes: bool = True) -> list[dict]:
 @errores_legibles
 def notas(curso_path: str) -> list[dict]:
     """Tablas de notas de un curso. curso_path ej: 'ingenieria/2026/2/CC1002/7'."""
-    html = client().servicio_curso(curso_path, "notas")
+    html = client().servicio_curso(curso_inscrito(curso_path), "notas")
     return [t.model_dump() for t in parsers.parse_notas(html)]
 
 
 @mcp.tool(annotations=SOLO_LECTURA)
 @errores_legibles
 def material_docente(curso_path: str) -> list[dict]:
-    """Lista el material docente de un curso (título, autor, fecha y ruta de descarga)."""
-    html = client().servicio_curso(curso_path, "material_docente")
+    """Lista el material docente de un curso (título, autor, fecha y campo `descarga`).
+
+    Para leer el contenido de un archivo, pasa su `descarga` a leer_material.
+    """
+    html = client().servicio_curso(curso_inscrito(curso_path), "material_docente")
     return [m.model_dump() for m in parsers.parse_material(html)]
+
+
+MAX_CARACTERES = 50_000
+
+
+@mcp.tool(annotations=SOLO_LECTURA)
+@errores_legibles
+def leer_material(curso_path: str, descarga: str, desde: int = 0, max_caracteres: int = 20_000) -> dict:
+    """Lee el texto de un archivo de material docente (PDF, Word .docx, PowerPoint .pptx o texto).
+
+    `descarga` es el campo del mismo nombre que devuelve material_docente. Los documentos
+    largos vienen por partes: si `quedan` > 0, vuelve a llamar con `desde` = `siguiente_desde`.
+    Los PDF marcan cada página con "--- Página N ---" para que puedas citarla.
+    """
+    path = curso_inscrito(curso_path)
+    contenido, nombre = client().get_bytes(ruta_descarga(path, descarga))
+    try:
+        tipo, texto = documentos.extraer_texto(nombre, contenido)
+    except documentos.DocumentoNoLegible as e:
+        raise ToolError(str(e)) from e
+    desde = max(0, desde)
+    max_caracteres = min(max(1, max_caracteres), MAX_CARACTERES)
+    parte = texto[desde : desde + max_caracteres]
+    fin = desde + len(parte)
+    return {
+        "archivo": nombre,
+        "tipo": tipo,
+        "total_caracteres": len(texto),
+        "desde": desde,
+        "texto": parte,
+        "quedan": len(texto) - fin,
+        "siguiente_desde": fin if fin < len(texto) else None,
+    }
 
 
 @mcp.tool(annotations=SOLO_LECTURA)
 @errores_legibles
 def novedades(curso_path: str, limite: int = 10) -> list[dict]:
-    """Últimas novedades (anuncios) publicadas en un curso."""
-    html = client().servicio_curso(curso_path, "novedades")
+    """Últimas novedades (anuncios del equipo docente) publicadas en un curso."""
+    html = client().servicio_curso(curso_inscrito(curso_path), "novedades")
     return [n.model_dump() for n in parsers.parse_novedades(html, limite)]
 
 
 @mcp.tool(annotations=ESCRIBE_LOCAL)
 @errores_legibles
 def descargar_material(curso_path: str, descarga: str) -> str:
-    """Descarga un archivo de material docente a la carpeta local `descargas/`.
+    """Descarga un archivo de material docente a la carpeta Descargas/U-Cursos del usuario.
 
-    `descarga` es el campo del mismo nombre que devuelve material_docente.
+    `descarga` es el campo del mismo nombre que devuelve material_docente. Para leer el
+    contenido usa leer_material; esta tool es para cuando el usuario quiere el archivo.
     """
-    if descarga.startswith(("http://", "https://")) and "u-cursos.cl" not in descarga:
-        raise ValueError("Solo se permiten descargas desde u-cursos.cl")
-    ruta = descarga if descarga.startswith(("/", "http")) else (
-        f"/{curso_path.strip('/')}/material_docente/{descarga}"
-    )
-    contenido, nombre = client().get_bytes(ruta)
+    path = curso_inscrito(curso_path)
+    contenido, nombre = client().get_bytes(ruta_descarga(path, descarga))
     DESCARGAS_DIR.mkdir(parents=True, exist_ok=True)
     destino = DESCARGAS_DIR / Path(nombre or "material.bin").name  # .name evita path traversal
     destino.write_bytes(contenido)

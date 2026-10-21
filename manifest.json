@@ -2,8 +2,8 @@
   "manifest_version": "0.4",
   "name": "ucursos",
   "display_name": "U-Cursos (solo lectura)",
-  "version": "0.2.0",
-  "description": "Deja que Claude lea tus cursos de U-Cursos (Universidad de Chile): tareas, notas, material docente y novedades.",
+  "version": "0.3.0",
+  "description": "Deja que Claude lea tus cursos de U-Cursos (Universidad de Chile): tareas, notas, novedades y el contenido del material docente.",
   "long_description": "Servidor MCP no oficial y de solo lectura para U-Cursos. Nunca entrega tareas, publica ni modifica nada. Para entrar, Claude abre una ventana de Edge o Chrome donde tú escribes tu clave; Claude nunca la ve. Las cookies de la sesión quedan solo en tu computador.",
   "author": {
     "name": "Contribuidores de u-cursosMCP",
@@ -20,25 +20,68 @@
     "entry_point": "mcpb_server.py",
     "mcp_config": {
       "command": "uv",
-      "args": ["run", "--directory", "${__dirname}", "mcpb_server.py"]
+      "args": [
+        "run",
+        "--directory",
+        "${__dirname}",
+        "mcpb_server.py"
+      ]
     }
   },
   "tools": [
-    {"name": "iniciar_sesion", "description": "Abre el navegador para que entres a U-Cursos"},
-    {"name": "estado_sesion", "description": "Revisa si la sesión sigue activa"},
-    {"name": "listar_cursos", "description": "Cursos en los que estás inscrito"},
-    {"name": "tareas", "description": "Tareas de todos tus cursos"},
-    {"name": "notas", "description": "Notas de un curso"},
-    {"name": "material_docente", "description": "Material docente de un curso"},
-    {"name": "novedades", "description": "Anuncios de un curso"},
-    {"name": "descargar_material", "description": "Descarga un archivo a tu carpeta Descargas/U-Cursos"}
+    {
+      "name": "iniciar_sesion",
+      "description": "Abre el navegador para que entres a U-Cursos"
+    },
+    {
+      "name": "estado_sesion",
+      "description": "Revisa si la sesión sigue activa"
+    },
+    {
+      "name": "listar_cursos",
+      "description": "Cursos en los que estás inscrito"
+    },
+    {
+      "name": "tareas",
+      "description": "Tareas de todos tus cursos"
+    },
+    {
+      "name": "notas",
+      "description": "Notas de un curso"
+    },
+    {
+      "name": "material_docente",
+      "description": "Material docente de un curso"
+    },
+    {
+      "name": "leer_material",
+      "description": "Lee el texto de un PDF, Word o PowerPoint del curso"
+    },
+    {
+      "name": "novedades",
+      "description": "Anuncios de un curso"
+    },
+    {
+      "name": "descargar_material",
+      "description": "Descarga un archivo a tu carpeta Descargas/U-Cursos"
+    }
   ],
   "compatibility": {
-    "platforms": ["win32", "darwin", "linux"],
+    "platforms": [
+      "win32",
+      "darwin",
+      "linux"
+    ],
     "runtimes": {
       "python": ">=3.11"
     }
   },
-  "keywords": ["u-cursos", "uchile", "universidad de chile", "estudiantes", "lms"],
+  "keywords": [
+    "u-cursos",
+    "uchile",
+    "universidad de chile",
+    "estudiantes",
+    "lms"
+  ],
   "license": "MIT"
 }

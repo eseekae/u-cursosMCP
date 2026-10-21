@@ -1,6 +1,6 @@
 [project]
 name = "ucursos-mcp"
-version = "0.2.0"
+version = "0.3.0"
 description = "Servidor MCP de solo lectura para U-Cursos (Universidad de Chile)"
 readme = "README.md"
 license = "MIT"
@@ -11,6 +11,9 @@ dependencies = [
     "beautifulsoup4>=4.12",
     "playwright>=1.45",
     "pydantic>=2.6",
+    "pypdf>=5",
+    "python-docx>=1.1",
+    "python-pptx>=1.0",
 ]
 
 [project.optional-dependencies]

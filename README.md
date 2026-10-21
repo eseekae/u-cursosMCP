@@ -1,6 +1,6 @@
 # ucursos-mcp
 
-Servidor MCP **de solo lectura** para que Claude lea tu U-Cursos (Universidad de Chile): cursos, tareas, notas, material docente y novedades.
+Servidor MCP **de solo lectura** para que Claude lea tu U-Cursos (Universidad de Chile): cursos, tareas, notas, novedades y el contenido del material docente (PDF, Word y PowerPoint).
 
 No es oficial ni está afiliado a la Universidad. Es open source (MIT): úsalo, modifícalo y mejóralo.
 
@@ -21,6 +21,8 @@ Necesitas Microsoft Edge (viene con Windows) o Google Chrome instalado.
 - "¿Qué tareas tengo pendientes esta semana?"
 - "Muéstrame las últimas novedades de Cálculo"
 - "¿Qué material docente hay en Física?"
+- "Lee la guía 3 de Física y explícame el ejercicio 2"
+- "¿Qué entra en el control 2 de Cálculo?"
 - "¿Cómo voy con las notas de Álgebra?"
 
 ## Seguridad y privacidad
@@ -28,6 +30,7 @@ Necesitas Microsoft Edge (viene con Windows) o Google Chrome instalado.
 - **Tu clave nunca pasa por el código ni por Claude**: la escribes tú en la ventana del navegador.
 - Solo se guardan las cookies de la sesión, en tu computador (`~/.ucursos-mcp/`). No se envían a ningún servidor aparte de U-Cursos.
 - Ninguna tool entrega tareas, publica ni modifica nada en U-Cursos.
+- Solo lee los cursos en que estás inscrito.
 - Los archivos descargados quedan en tu carpeta `Descargas/U-Cursos`.
 
 ## Tools
@@ -40,6 +43,7 @@ Necesitas Microsoft Edge (viene con Windows) o Google Chrome instalado.
 | `tareas(solo_pendientes=True)` | Tareas de todos los cursos |
 | `notas(curso_path)` | Tablas de notas del curso |
 | `material_docente(curso_path)` | Lista de material |
+| `leer_material(curso_path, descarga, desde=0)` | Texto de un PDF, .docx, .pptx o archivo de texto, por partes |
 | `descargar_material(curso_path, descarga)` | Baja un archivo a `Descargas/U-Cursos` |
 | `novedades(curso_path, limite=10)` | Últimos anuncios |
 
@@ -51,6 +55,7 @@ Necesitas Microsoft Edge (viene con Windows) o Google Chrome instalado.
 auth.py         Login manual con navegador visible (Playwright + Edge/Chrome instalado)
 client.py       Sesión HTTP con esas cookies, decodifica Latin-1, detecta sesión expirada
 parsers.py      HTML -> modelos (única capa que conoce el HTML de U-Cursos)
+documentos.py   archivo -> texto (PDF, .docx, .pptx, texto)
 models.py       DTOs con pydantic
 server.py       Tools MCP (MCPServer del SDK mcp 2.x, transporte stdio)
 mcpb_server.py  Punto de entrada de la extensión de Claude Desktop

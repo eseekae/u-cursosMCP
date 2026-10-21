@@ -38,18 +38,24 @@ Si algo falla al arrancar, el log está en Claude Desktop: Configuración → De
 - **Esperado:** la lista coincide con la página del ramo. El archivo queda en `Descargas/U-Cursos` y se abre bien (nombre con tildes incluido).
 - **Anota:** si faltan archivos, si salen las categorías como si fueran archivos, o si la descarga queda corrupta.
 
-## 6. Novedades y notas
+## 6. Leer material
+
+- **Escribe:** `Lee <nombre de un PDF del ramo> y hazme un resumen` y después `¿En qué página habla de <tema>?`
+- **Esperado:** Claude llama `leer_material`, resume lo que dice el archivo y cita páginas que coinciden con el PDF real. Si el archivo es largo, lo pide por partes.
+- **Prueba también:** un Word, un PowerPoint y, si hay, un PDF escaneado (debería decir que no tiene texto, no inventar).
+
+## 7. Novedades y notas
 
 - **Escribe:** `Muéstrame las últimas 3 novedades de <ramo>` y `¿Cómo voy con las notas de <ramo>?` (uno con notas publicadas)
 - **Esperado:** títulos, fechas y texto igual que en U-Cursos; las notas como tabla con las mismas evaluaciones.
 - **Anota:** diferencias. El parser de novedades también está sin validar.
 
-## 7. Sesión guardada
+## 8. Sesión guardada
 
 - **Haz:** cierra Claude Desktop por completo (también desde la bandeja del sistema), ábrelo y en un chat nuevo escribe `¿Qué tareas tengo pendientes?`
 - **Esperado:** responde directo, sin pedirte login otra vez.
 
-## 8. Casos raros
+## 9. Casos raros
 
 - **Escribe:** `Muéstrame las notas de MA9999` (un ramo que no existe)
   - **Esperado:** Claude dice que no lo encuentra; no se cae ni inventa notas.
