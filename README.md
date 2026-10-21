@@ -10,11 +10,11 @@ No es oficial ni está afiliado a la Universidad. Es open source (MIT): úsalo, 
 2. En Claude Desktop: **Configuración → Extensiones** y arrastra el archivo (o haz doble clic sobre él).
 3. Pulsa **Instalar**. La primera vez tarda un poco: Claude Desktop descarga Python y las librerías.
 4. En un chat nuevo, pídele: *"Revisa mis cursos de U-Cursos"*.
-5. Claude va a abrir una ventana de Edge o Chrome. Inicia sesión ahí con tu cuenta UChile y avísale cuando termines.
+5. Claude abre U-Cursos en tu navegador de siempre. Inicia sesión ahí como cualquier día y avísale cuando ya estés dentro; Claude importa tu sesión.
 
-Listo. Cuando la sesión expire, Claude te vuelve a abrir la ventana.
+Listo. Cuando la sesión expire, Claude vuelve a abrir U-Cursos para que entres de nuevo.
 
-Necesitas Microsoft Edge (viene con Windows) o Google Chrome instalado.
+Funciona con Edge, Chrome, Firefox, Brave, Opera o Vivaldi: basta con que inicies sesión en U-Cursos en el que uses normalmente.
 
 ### Qué puedes pedirle
 
@@ -27,7 +27,7 @@ Necesitas Microsoft Edge (viene con Windows) o Google Chrome instalado.
 
 ## Seguridad y privacidad
 
-- **Tu clave nunca pasa por el código ni por Claude**: la escribes tú en la ventana del navegador.
+- **Tu clave nunca pasa por el código ni por Claude**: inicias sesión tú, en tu navegador normal. El MCP solo lee las cookies del dominio de U-Cursos desde tu navegador, igual que un gestor de contraseñas con tus propios datos. No se automatiza el navegador.
 - Solo se guardan las cookies de la sesión, en tu computador (`~/.ucursos-mcp/`). No se envían a ningún servidor aparte de U-Cursos.
 - Ninguna tool entrega tareas, publica ni modifica nada en U-Cursos.
 - Solo lee los cursos en que estás inscrito.
@@ -37,8 +37,8 @@ Necesitas Microsoft Edge (viene con Windows) o Google Chrome instalado.
 
 | Tool | Qué hace |
 |---|---|
-| `iniciar_sesion()` | Abre Edge o Chrome para que entres a U-Cursos |
-| `estado_sesion()` | Dice si la sesión sigue activa |
+| `iniciar_sesion()` | Abre U-Cursos en tu navegador para que entres |
+| `estado_sesion()` | Importa la sesión del navegador y dice si quedó activa |
 | `listar_cursos()` | Cursos inscritos, con su `path` |
 | `tareas(solo_pendientes=True)` | Tareas de todos los cursos |
 | `notas(curso_path)` | Tablas de notas del curso |
@@ -52,7 +52,7 @@ Necesitas Microsoft Edge (viene con Windows) o Google Chrome instalado.
 ### Arquitectura
 
 ```
-auth.py         Login manual con navegador visible (Playwright + Edge/Chrome instalado)
+auth.py         Importa la sesión desde tu navegador (browser_cookie3); abre U-Cursos con webbrowser
 client.py       Sesión HTTP con esas cookies, decodifica Latin-1, detecta sesión expirada
 parsers.py      HTML -> modelos (única capa que conoce el HTML de U-Cursos)
 documentos.py   archivo -> texto (PDF, .docx, .pptx, texto)
@@ -62,7 +62,7 @@ mcpb_server.py  Punto de entrada de la extensión de Claude Desktop
 manifest.json   Manifest de la extensión (.mcpb, runtime uv)
 ```
 
-El login de U-Cursos pasa por Cuenta UChile (OAuth2/OIDC con reCAPTCHA), así que no se automatiza: el usuario inicia sesión a mano y se reutiliza la sesión hasta que expire.
+El login de U-Cursos pasa por Cuenta UChile (OAuth2/OIDC con captcha), así que no se automatiza: el usuario inicia sesión en su propio navegador y el MCP lee esa sesión. Se reutiliza hasta que expire.
 
 ### Correr desde el código
 
@@ -72,7 +72,7 @@ cd u-cursosMCP
 uv venv
 uv pip install -e ".[dev]"
 uv run pytest -q                              # tests
-uv run ucursos-login                          # login desde la terminal (opcional)
+uv run ucursos-login                          # abre U-Cursos y, tras entrar, importa la sesión (opcional)
 uv run mcp dev src/ucursos_mcp/server.py      # MCP Inspector
 ```
 
@@ -94,7 +94,7 @@ El workflow `.github/workflows/release.yml` la arma y la adjunta sola al crear u
 |---|---|
 | `UCURSOS_DATA` | `~/.ucursos-mcp` |
 | `UCURSOS_SESSION` | `~/.ucursos-mcp/ucursos.storage_state.json` |
-| `UCURSOS_BROWSER_CHANNEL` | prueba `msedge` y luego `chrome` |
+| `UCURSOS_BROWSER` | el navegador del que leer la sesión (por defecto los prueba todos) |
 | `UCURSOS_DESCARGAS` | `~/Downloads/U-Cursos` |
 
 ### Contribuir

@@ -17,8 +17,8 @@ Si algo falla al arrancar, el log está en Claude Desktop: Configuración → De
 ## 2. Login
 
 - **Escribe:** `¿Tengo sesión activa en U-Cursos?`
-- **Esperado:** Claude llama `estado_sesion`, ve que no hay sesión y llama `iniciar_sesion`. Se abre Edge en U-Cursos (sin ventana negra de consola). Entras con tu cuenta, le dices `listo` y Claude confirma "Sesión activa".
-- **Anota:** si se abrió Edge, si el reCAPTCHA pasó y si Claude esperó tu aviso o se adelantó.
+- **Esperado:** Claude llama `iniciar_sesion` y se abre U-Cursos en tu navegador por defecto. Inicias sesión como siempre, le dices `listo` y Claude llama `estado_sesion`, importa tu sesión y confirma "Sesión activa".
+- **Anota:** en qué navegador se abrió, si pudo importar la sesión (en Windows con Chrome o Edge muy nuevos puede fallar: prueba iniciar sesión en Firefox) y si Claude esperó tu aviso.
 
 ## 3. Mis cursos
 

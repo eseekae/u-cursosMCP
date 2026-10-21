@@ -11,8 +11,6 @@ from __future__ import annotations
 
 import functools
 import os
-import subprocess
-import sys
 from pathlib import Path
 from urllib.parse import urlparse
 
@@ -21,8 +19,8 @@ from mcp.server.mcpserver import MCPServer
 from mcp.server.mcpserver.exceptions import ToolError
 from mcp_types import ToolAnnotations
 
-from . import documentos, parsers
-from .auth import DATA_DIR, LOGIN_LOG, SESSION_PATH
+from . import auth, documentos, parsers
+from .auth import SESSION_PATH
 from .client import SessionExpired, UCursosClient
 
 INSTRUCCIONES = """\
@@ -54,9 +52,9 @@ Reglas:
 - Si algo no está en U-Cursos, dilo. No inventes fechas, notas ni contenidos.
 - Lee solo lo necesario: no recorras todos los cursos ni todos los archivos si no te lo piden.
 - Es solo lectura: no puedes entregar tareas, publicar ni enviar nada. Si te lo piden, explícalo.
-- Si una tool dice que no hay sesión o que expiró, llama a iniciar_sesion: se abre una
-  ventana de Edge o Chrome donde el usuario escribe su clave (tú nunca la ves). Espera a que
-  el usuario diga que terminó y llama a estado_sesion antes de reintentar.
+- Si una tool dice que no hay sesión o que expiró, llama a iniciar_sesion: abre U-Cursos en
+  el navegador normal del usuario para que inicie sesión él mismo (su clave nunca pasa por ti).
+  Espera a que el usuario diga que ya entró y llama a estado_sesion, que importa esa sesión.
 """
 
 mcp = MCPServer("ucursos", instructions=INSTRUCCIONES)
@@ -97,7 +95,6 @@ DESCARGAS_DIR = Path(os.environ.get("UCURSOS_DESCARGAS", Path.home() / "Download
 
 _client: UCursosClient | None = None
 _client_mtime: float | None = None
-_login_proc: subprocess.Popen | None = None
 
 
 def client() -> UCursosClient:
@@ -147,59 +144,44 @@ def ruta_descarga(path: str, descarga: str) -> str:
     return ruta
 
 
-def _login_en_curso() -> bool:
-    return _login_proc is not None and _login_proc.poll() is None
-
-
-def _cola_log(n: int = 5) -> str:
-    try:
-        return "\n".join(LOGIN_LOG.read_text(encoding="utf-8", errors="replace").splitlines()[-n:])
-    except OSError:
-        return ""
-
-
 @mcp.tool(annotations=ESCRIBE_LOCAL)
 def iniciar_sesion() -> str:
-    """Abre una ventana de Edge o Chrome en el computador del usuario para que entre a U-Cursos.
+    """Abre U-Cursos en el navegador normal del usuario (Edge, Chrome, Firefox...) para que entre.
 
-    Úsala cuando otra tool diga que no hay sesión o que expiró. El usuario escribe su clave y
-    resuelve el reCAPTCHA en esa ventana; tú nunca la ves. Vuelve de inmediato, sin esperar
-    el login: pídele al usuario que te avise cuando termine y luego llama a estado_sesion.
+    Úsala cuando otra tool diga que no hay sesión o que expiró. El usuario inicia sesión él
+    mismo en su navegador de siempre; su clave nunca pasa por ti. No se automatiza el navegador.
+    Después de abrirlo, pídele al usuario que te avise cuando ya esté dentro y llama a
+    estado_sesion, que importa esa sesión desde el navegador.
     """
-    global _login_proc
-    if _login_en_curso():
-        return "Ya hay una ventana de login abierta. Pídele al usuario que termine de entrar ahí."
-
-    DATA_DIR.mkdir(parents=True, exist_ok=True)
-    flags = subprocess.CREATE_NO_WINDOW if sys.platform == "win32" else 0  # sin consola negra en Windows
-    with open(LOGIN_LOG, "w", encoding="utf-8") as log:
-        # Proceso aparte: el login puede tardar minutos y no debe bloquear el server.
-        # stdin/stdout nunca se heredan, porque son el canal MCP con Claude.
-        _login_proc = subprocess.Popen(
-            [sys.executable, "-m", "ucursos_mcp.auth"],
-            stdin=subprocess.DEVNULL,
-            stdout=log,
-            stderr=subprocess.STDOUT,
-            env={**os.environ, "PYTHONIOENCODING": "utf-8"},
-            creationflags=flags,
-        )
+    auth.abrir_ucursos()
     return (
-        "Se abrió una ventana del navegador con U-Cursos. Pídele al usuario que inicie sesión ahí "
-        "(tiene 5 minutos) y que te avise cuando termine; después llama a estado_sesion."
+        "Se abrió U-Cursos en el navegador por defecto del usuario. Pídele que inicie sesión ahí "
+        "como lo hace siempre (su cuenta UChile) y que te avise cuando ya esté dentro; después "
+        "llama a estado_sesion para importar la sesión."
     )
 
 
-@mcp.tool(annotations=SOLO_LECTURA)
+@mcp.tool(annotations=ESCRIBE_LOCAL)
 @errores_legibles
 def estado_sesion() -> str:
-    """Dice si hay una sesión de U-Cursos válida. Úsala después de iniciar_sesion o si una tool falla."""
-    if _login_en_curso():
-        return "El login sigue en curso: el usuario todavía no termina de entrar en la ventana del navegador."
-    if _login_proc is not None and _login_proc.returncode not in (0, None):
-        return f"El último intento de login falló. Detalle:\n{_cola_log()}\nPuedes llamar a iniciar_sesion de nuevo."
-    if not SESSION_PATH.exists():
-        return "No hay sesión guardada. Llama a iniciar_sesion."
-    client().user_id  # lanza SessionExpired si las cookies ya no sirven
+    """Importa la sesión desde el navegador del usuario y dice si quedó activa.
+
+    Llámala después de iniciar_sesion (cuando el usuario avise que ya entró) o si una tool
+    dice que la sesión expiró: vuelve a leer las cookies del navegador y revalida.
+    """
+    global _client_mtime
+    try:
+        n = auth.importar_sesion()
+    except auth.LoginError as e:
+        raise ToolError(str(e)) from e
+    _client_mtime = None  # fuerza recrear el cliente con las cookies nuevas
+    try:
+        client().user_id  # lanza SessionExpired si las cookies no sirven (no entró o caducaron)
+    except SessionExpired as e:
+        raise ToolError(
+            f"Importé {n} cookies del navegador, pero U-Cursos no las reconoce. "
+            "¿El usuario terminó de iniciar sesión? Que entre en el navegador y vuelve a llamarme."
+        ) from e
     return "Sesión activa. Ya puedes usar las demás tools."
 
 

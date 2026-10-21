@@ -9,7 +9,7 @@ Proyecto open source hecho por estudiantes de la FCFM. Responder en español chi
 - **Solo lectura.** Nunca agregar tools que entreguen tareas, publiquen en foros, manden correos o modifiquen nada en U-Cursos.
 - **Solo cursos inscritos.** Toda tool que reciba `curso_path` pasa por `curso_inscrito()` (server.py), y las descargas por `ruta_descarga()`. No agregar acceso a secciones o semestres donde el usuario no está inscrito.
 - **Nunca leer, imprimir ni commitear la sesión** (`~/.ucursos-mcp/` o el antiguo `.session/`: son las cookies de su cuenta). `settings.json` lo bloquea; no intentar rodearlo.
-- **Nunca automatizar el login** ni pedirle la clave. El login es manual porque Cuenta UChile tiene reCAPTCHA: la tool `iniciar_sesion` (o `ucursos-login`) solo abre Edge/Chrome y el usuario escribe su clave ahí.
+- **Nunca automatizar el login** ni pedirle la clave. El usuario inicia sesión en SU propio navegador (Cuenta UChile tiene captcha): `iniciar_sesion` solo abre U-Cursos con `webbrowser`, y `estado_sesion` importa las cookies con browser_cookie3. Prohibido abrir un navegador controlado por código o intentar evadir el captcha.
 - **No commitear datos de terceros**: nombres, RUT, correos o notas de otras personas. Los fixtures se anonimizan y se revisan antes de commitear.
 - Ser un cliente educado: el cliente ya espera 0,5 s entre requests. No hacer loops masivos sobre todos los cursos sin que lo pida.
 - Código, comentarios y commits en español. **No usar guiones largos (em dash)** en ningún texto.
@@ -18,7 +18,7 @@ Proyecto open source hecho por estudiantes de la FCFM. Responder en español chi
 
 ```
 src/ucursos_mcp/
-  auth.py     login manual con Playwright (Edge/Chrome instalado) -> ~/.ucursos-mcp/ucursos.storage_state.json
+  auth.py     abre U-Cursos en el navegador del usuario e importa su sesión (browser_cookie3) -> ~/.ucursos-mcp/ucursos.storage_state.json
   client.py   httpx con esas cookies; decodifica ISO-8859-1; lanza SessionExpired
   parsers.py  HTML -> modelos. ÚNICA capa que conoce el HTML de U-Cursos
   documentos.py  archivo descargado -> texto (pypdf, python-docx, python-pptx). No sabe de U-Cursos
@@ -38,8 +38,7 @@ Si U-Cursos cambia el diseño, se toca **solo `parsers.py`**.
 
 ```powershell
 uv pip install -e ".[dev]"                     # instalar con pytest
-uv run playwright install msedge               # solo si no tienes Edge ni Chrome instalado
-uv run ucursos-login                           # login manual desde terminal (alternativa a la tool iniciar_sesion)
+uv run ucursos-login                           # abre U-Cursos y, tras entrar, importa la sesion (alternativa a la tool)
 uv run pytest -q                               # tests
 uv run mcp dev src/ucursos_mcp/server.py       # MCP Inspector (probar tools a mano)
 uv run python scripts/capturar_html.py <ruta> <nombre>   # fixture anonimizado
@@ -68,7 +67,7 @@ Skill externa opcional: `scrapling` (disponible en claude.ai) sirve si algún d�
 | `Ã¡`, `Ã±` o `�` en los datos | Charset mal decodificado | Revisar `resp.encoding` en `client.get_html` (debe ser Latin-1) |
 | Tool devuelve `[]` | Cambió el HTML | Skill `arreglar-parser` |
 | `ModuleNotFoundError: mcp.server.fastmcp` | Código o ejemplo de la API 1.x | Usar `from mcp.server.mcpserver import MCPServer` |
-| reCAPTCHA no pasa en el login | Chromium de Playwright detectado | Usar `UCURSOS_BROWSER_CHANNEL=msedge` o `chrome` (navegador real) |
+| No lee cookies (Windows, Chrome/Edge nuevos) | Cifrado app-bound del navegador | Iniciar sesion en Firefox, o `UCURSOS_BROWSER=firefox` |
 | Tool devuelve solo `Error executing tool X` | Excepción que no es ToolError | Capturarla en `errores_legibles` (server.py) |
 | Claude Code no ve el server | `.mcp.json` no aprobado o deps no instaladas | `/mcp` en Claude Code; correr `uv pip install -e .` |
 
