@@ -9,7 +9,7 @@ Proyecto open source hecho por estudiantes de la FCFM. Responder en español chi
 - **Solo lectura.** Nunca agregar tools que entreguen tareas, publiquen en foros, manden correos o modifiquen nada en U-Cursos.
 - **Solo cursos inscritos.** Toda tool que reciba `curso_path` pasa por `curso_inscrito()` (server.py), y las descargas por `ruta_descarga()`. No agregar acceso a secciones o semestres donde el usuario no está inscrito.
 - **Nunca leer, imprimir ni commitear la sesión** (`~/.ucursos-mcp/` o el antiguo `.session/`: son las cookies de su cuenta). `settings.json` lo bloquea; no intentar rodearlo.
-- **Nunca automatizar el login** ni pedirle la clave. El usuario inicia sesión en SU propio navegador (Cuenta UChile tiene captcha): `iniciar_sesion` solo abre U-Cursos con `webbrowser`, y `estado_sesion` importa las cookies con browser_cookie3. Prohibido abrir un navegador controlado por código o intentar evadir el captcha.
+- **Nunca automatizar el login** ni pedirle la clave. El usuario inicia sesión en SU propio navegador (Cuenta UChile tiene captcha): `iniciar_sesion` solo lanza el navegador con la URL (como `webbrowser`), y `estado_sesion` importa las cookies (browser_cookie3 para Chromium, SQLite directo para Firefox/Zen). Prohibido abrir un navegador controlado por código o intentar evadir el captcha.
 - **No commitear datos de terceros**: nombres, RUT, correos o notas de otras personas. Los fixtures se anonimizan y se revisan antes de commitear.
 - Ser un cliente educado: el cliente ya espera 0,5 s entre requests. No hacer loops masivos sobre todos los cursos sin que lo pida.
 - Código, comentarios y commits en español. **No usar guiones largos (em dash)** en ningún texto.
@@ -18,8 +18,9 @@ Proyecto open source hecho por estudiantes de la FCFM. Responder en español chi
 
 ```
 src/ucursos_mcp/
-  auth.py     abre U-Cursos en el navegador del usuario e importa su sesión (browser_cookie3) -> ~/.ucursos-mcp/ucursos.storage_state.json
-  client.py   httpx con esas cookies; decodifica ISO-8859-1; lanza SessionExpired
+  navegadores.py  navegadores conocidos, perfiles, navegador por defecto y cómo abrir uno. No sabe de cookies
+  auth.py     lee cookies por perfil, valida cada uno, guarda el primero que sirve (con su origen) -> ~/.ucursos-mcp/ucursos.storage_state.json; si ninguno sirve, diagnóstico en login.log
+  client.py   httpx con esas cookies; decodifica ISO-8859-1; lanza SessionExpired; validar_cookies()
   parsers.py  HTML -> modelos. ÚNICA capa que conoce el HTML de U-Cursos
   documentos.py  archivo descargado -> texto (pypdf, python-docx, python-pptx). No sabe de U-Cursos
   models.py   DTOs pydantic
@@ -30,6 +31,8 @@ scripts/capturar_html.py   baja una página con la sesión y la guarda anonimiza
 tests/test_parsers.py      tests sintéticos + tests sobre fixtures reales si existen
 tests/test_documentos.py   extracción de texto con archivos armados en memoria
 tests/test_server.py       errores legibles, cursos inscritos, rutas de descarga, paginación
+tests/test_auth.py         login: perfiles falsos, WAL de Firefox/Zen, diagnóstico
+tests/test_client.py       validar_cookies con un servidor falso (httpx.MockTransport)
 ```
 
 Si U-Cursos cambia el diseño, se toca **solo `parsers.py`**.
@@ -67,7 +70,10 @@ Skill externa opcional: `scrapling` (disponible en claude.ai) sirve si algún d�
 | `Ã¡`, `Ã±` o `�` en los datos | Charset mal decodificado | Revisar `resp.encoding` en `client.get_html` (debe ser Latin-1) |
 | Tool devuelve `[]` | Cambió el HTML | Skill `arreglar-parser` |
 | `ModuleNotFoundError: mcp.server.fastmcp` | Código o ejemplo de la API 1.x | Usar `from mcp.server.mcpserver import MCPServer` |
-| No lee cookies (Windows, Chrome/Edge nuevos) | Cifrado app-bound del navegador | Iniciar sesion en Firefox, o `UCURSOS_BROWSER=firefox` |
+| No lee cookies (Windows, Chrome/Edge nuevos) | Cifrado app-bound del navegador | Iniciar sesion en Firefox o Zen, y `estado_sesion(navegador="zen")` |
+| "archivo de cookies bloqueado" | Chromium abierto en Windows | Cerrarlo del todo; si luego pide login, la cookie era de sesión: usar Firefox/Zen |
+| Importa cookies pero U-Cursos las rechaza | Otro navegador o perfil, o Chromium aún no las escribe | Leer el diagnóstico (dice navegador, perfil y cookies); pasar `navegador`/`perfil` |
+| "no encontré el link /usuario/<hash>/" | Cambió la portada | `client.user_id` y skill `arreglar-parser` |
 | Tool devuelve solo `Error executing tool X` | Excepción que no es ToolError | Capturarla en `errores_legibles` (server.py) |
 | Claude Code no ve el server | `.mcp.json` no aprobado o deps no instaladas | `/mcp` en Claude Code; correr `uv pip install -e .` |
 
@@ -86,5 +92,6 @@ Skill externa opcional: `scrapling` (disponible en claude.ai) sirve si algún d�
 
 1. Validar los `TODO` de `parsers.py` (tareas y novedades) con fixtures reales: skill `arreglar-parser`.
 2. Tools nuevas: calendario, foro (lectura), horario: skill `nueva-tool`.
-3. Detectar expiración de sesión también por redirección a la portada.
+3. Detectar expiración de sesión también por redirección a la portada (ya se detecta la redirección a Cuenta UChile).
 4. Evaluaciones de calidad de las tools con `mcp-builder/reference/evaluation.md`.
+5. Confirmar en Windows real la detección del navegador por defecto (ProgId de Zen) y las rutas de ejecutables.

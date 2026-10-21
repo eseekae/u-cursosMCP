@@ -10,11 +10,13 @@ No es oficial ni está afiliado a la Universidad. Es open source (MIT): úsalo, 
 2. En Claude Desktop: **Configuración → Extensiones** y arrastra el archivo (o haz doble clic sobre él).
 3. Pulsa **Instalar**. La primera vez tarda un poco: Claude Desktop descarga Python y las librerías.
 4. En un chat nuevo, pídele: *"Revisa mis cursos de U-Cursos"*.
-5. Claude abre U-Cursos en tu navegador de siempre. Inicia sesión ahí como cualquier día y avísale cuando ya estés dentro; Claude importa tu sesión.
+5. Claude abre U-Cursos en tu navegador de siempre (o en el que le digas). Inicia sesión ahí como cualquier día y avísale cuando ya estés dentro; Claude importa tu sesión desde ese mismo navegador.
 
 Listo. Cuando la sesión expire, Claude vuelve a abrir U-Cursos para que entres de nuevo.
 
-Funciona con Edge, Chrome, Firefox, Brave, Opera o Vivaldi: basta con que inicies sesión en U-Cursos en el que uses normalmente.
+Funciona con Firefox, Zen, LibreWolf, Edge, Chrome, Brave, Opera, Opera GX, Vivaldi y Chromium, incluidos varios perfiles por navegador. Si usas más de uno, dile a Claude en cuál iniciaste sesión ("estoy en Zen", "perfil Universidad de Edge").
+
+**En Windows, Firefox y Zen son lo más confiable.** Edge, Chrome y Brave nuevos cifran sus cookies con una llave ligada a la aplicación que este programa no puede leer, y bloquean el archivo de cookies mientras están abiertos. Si falla con uno de esos, Claude te muestra qué encontró en cada navegador y perfil y qué hacer.
 
 ### Qué puedes pedirle
 
@@ -37,8 +39,8 @@ Funciona con Edge, Chrome, Firefox, Brave, Opera o Vivaldi: basta con que inicie
 
 | Tool | Qué hace |
 |---|---|
-| `iniciar_sesion()` | Abre U-Cursos en tu navegador para que entres |
-| `estado_sesion()` | Importa la sesión del navegador y dice si quedó activa |
+| `iniciar_sesion(navegador=None)` | Abre U-Cursos en ese navegador (o el último que funcionó, o el por defecto) para que entres |
+| `estado_sesion(navegador=None, perfil=None)` | Importa la sesión de ese navegador, la valida perfil por perfil y, si falla, explica qué encontró |
 | `listar_cursos()` | Cursos inscritos, con su `path` |
 | `tareas(solo_pendientes=True)` | Tareas de todos los cursos |
 | `notas(curso_path)` | Tablas de notas del curso |
@@ -52,7 +54,8 @@ Funciona con Edge, Chrome, Firefox, Brave, Opera o Vivaldi: basta con que inicie
 ### Arquitectura
 
 ```
-auth.py         Importa la sesión desde tu navegador (browser_cookie3); abre U-Cursos con webbrowser
+navegadores.py  Navegadores conocidos, sus perfiles, el navegador por defecto y cómo abrir uno
+auth.py         Lee las cookies de cada perfil, las valida, guarda la sesión y arma el diagnóstico
 client.py       Sesión HTTP con esas cookies, decodifica Latin-1, detecta sesión expirada
 parsers.py      HTML -> modelos (única capa que conoce el HTML de U-Cursos)
 documentos.py   archivo -> texto (PDF, .docx, .pptx, texto)
@@ -64,6 +67,8 @@ manifest.json   Manifest de la extensión (.mcpb, runtime uv)
 
 El login de U-Cursos pasa por Cuenta UChile (OAuth2/OIDC con captcha), así que no se automatiza: el usuario inicia sesión en su propio navegador y el MCP lee esa sesión. Se reutiliza hasta que expire.
 
+Cómo se elige la sesión: `estado_sesion` lee las cookies de `u-cursos.cl` y `uchile.cl` de cada perfil (primero el navegador pedido, el último que funcionó o el por defecto) y pide la portada de U-Cursos con ellas. Una sesión vale si U-Cursos redirige a `/usuario/<hash>/` o la portada trae ese link; no se depende del nombre de ninguna cookie. Se guarda el primer perfil que funcione, junto con el navegador de origen para la próxima vez. Firefox, Zen y LibreWolf se leen directamente con SQLite (copiando también `cookies.sqlite-wal`, donde quedan las cookies recién creadas); los Chromium, con browser_cookie3. El diagnóstico de la última falla queda en `~/.ucursos-mcp/login.log` (solo nombres de cookies, nunca valores).
+
 ### Correr desde el código
 
 ```powershell
@@ -72,7 +77,7 @@ cd u-cursosMCP
 uv venv
 uv pip install -e ".[dev]"
 uv run pytest -q                              # tests
-uv run ucursos-login                          # abre U-Cursos y, tras entrar, importa la sesión (opcional)
+uv run ucursos-login --navegador zen          # abre U-Cursos y, tras entrar, importa la sesión (opcional; --perfil también)
 uv run mcp dev src/ucursos_mcp/server.py      # MCP Inspector
 ```
 
@@ -94,7 +99,7 @@ El workflow `.github/workflows/release.yml` la arma y la adjunta sola al crear u
 |---|---|
 | `UCURSOS_DATA` | `~/.ucursos-mcp` |
 | `UCURSOS_SESSION` | `~/.ucursos-mcp/ucursos.storage_state.json` |
-| `UCURSOS_BROWSER` | el navegador del que leer la sesión (por defecto los prueba todos) |
+| `UCURSOS_BROWSER` | fuerza un navegador para abrir y leer la sesión: `edge`, `chrome`, `brave`, `vivaldi`, `opera`, `opera_gx`, `chromium`, `firefox`, `zen`, `librewolf` (por defecto: el último que funcionó, luego el por defecto, luego todos) |
 | `UCURSOS_DESCARGAS` | `~/Downloads/U-Cursos` |
 
 ### Contribuir
