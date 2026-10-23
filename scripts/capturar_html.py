@@ -17,7 +17,8 @@ Ejemplos:
 
 Anonimización de la versión local (no es suficiente para publicarla):
   - hashes de usuario (/usuario/<hash32>/) -> 000...0
-  - query strings con tokens (csrf, etc.) -> se eliminan
+  - query strings: se quitan los parámetros con tokens (csrf, etc.) y los valores que no son
+    números cortos quedan como "x"
   - nombres en links a perfiles de usuario -> "Persona N"
   - scripts inline -> se eliminan (pueden traer tokens)
 
@@ -40,7 +41,7 @@ import re
 import sys
 import unicodedata
 from pathlib import Path
-from urllib.parse import urlparse
+from urllib.parse import parse_qsl, urlencode, urlparse
 
 from bs4 import BeautifulSoup, Comment, NavigableString
 
@@ -48,6 +49,21 @@ FIXTURES = Path(__file__).resolve().parent.parent / "tests" / "fixtures"
 ESQUELETOS = FIXTURES / "esqueletos"
 HASH_RE = re.compile(r"/usuario/[0-9a-f]{32}/")
 FALSO = "/usuario/" + "0" * 32 + "/"
+
+
+TOKEN_RE = re.compile(r"csrf|token|hash|key|sesion|session|auth|firma|sig", re.I)
+
+
+def _sin_tokens(href: str) -> str:
+    """Query sin tokens: se conservan los nombres de los parámetros (sirven para saber cómo pagina
+    U-Cursos) con valores numéricos cortos; el resto de los valores queda como "x"."""
+    base, _, query = href.partition("?")
+    pares = [
+        (k, v if re.fullmatch(r"\d{1,8}", v) else "x")
+        for k, v in parse_qsl(query, keep_blank_values=True)
+        if not TOKEN_RE.search(k)
+    ]
+    return base + (f"?{urlencode(pares)}" if pares else "")
 
 
 def anonimizar(html: str) -> str:
@@ -65,7 +81,7 @@ def anonimizar(html: str) -> str:
             if nombre:
                 personas.setdefault(nombre, f"Persona {len(personas) + 1}")
                 a.string = personas[nombre]
-        a["href"] = href.split("?")[0]
+        a["href"] = _sin_tokens(href)
 
     for tag in soup.find_all(["form", "input"]):
         for attr in ("action", "value"):
@@ -155,7 +171,7 @@ class _Esqueleto:
             else:
                 partes.append("x")
         prefijo = f"{u.scheme}://{u.hostname}" if u.hostname else ""
-        return prefijo + "/".join(partes)  # sin query: anonimizar ya la sacó (puede traer tokens)
+        return prefijo + "/".join(partes) + (f"?{u.query}" if u.query else "")  # anonimizar ya le sacó los tokens
 
     def __call__(self, html: str) -> str:
         soup = BeautifulSoup(anonimizar(html), "html.parser")

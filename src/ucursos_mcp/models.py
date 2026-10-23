@@ -2,7 +2,7 @@
 
 from __future__ import annotations
 
-from pydantic import BaseModel
+from pydantic import BaseModel, Field
 
 
 class Curso(BaseModel):
@@ -96,6 +96,51 @@ class Item(BaseModel):
     texto: str
     url: str | None      # ruta del objeto, para abrirlo con leer_seccion(ruta=...)
     enlaces: list[str]
+
+
+class MensajeForo(BaseModel):
+    id: str | None
+    autor: str
+    rol: str | None      # cargo en el curso: profesor de catedra, profesor auxiliar, ayudante, alumno, ...
+    fecha: str | None    # ISO 8601
+    texto: str
+    url: str | None
+    nuevo: bool          # no leído por el usuario
+
+
+class TemaForo(MensajeForo):
+    titulo: str
+    lecturas: int | None
+    total_respuestas: int
+    respuestas: list[MensajeForo]
+
+
+class Foro(BaseModel):
+    temas: list[TemaForo]
+    pagina: int
+    paginas: dict[str, str] = Field(default_factory=dict, exclude=True)  # "2", "siguiente" -> ruta
+
+
+class Evento(BaseModel):
+    """Bloque del calendario de un curso o del horario del usuario."""
+    fecha: str | None    # AAAA-MM-DD
+    dia: str             # lunes, martes, ...
+    inicio: str | None   # ISO 8601 con hora de Chile; None si es de todo el día
+    fin: str | None
+    todo_el_dia: bool
+    titulo: str
+    tipo: str | None     # Cátedra, Auxiliar, Control, ... (la etiqueta de color)
+    sala: str | None
+    curso: CursoRef | None  # solo en el horario, que mezcla todos los cursos
+
+
+class Calendario(BaseModel):
+    semana_inicio: str | None   # AAAA-MM-DD
+    semana_fin: str | None
+    eventos: list[Evento]
+    feriados: list[str]                 # AAAA-MM-DD, de todo el año que muestra U-Cursos
+    eventos_por_dia: dict[str, int]     # AAAA-MM-DD -> cantidad, solo días con eventos
+    rutas: dict[str, str] = Field(default_factory=dict, exclude=True)  # fecha, "anterior", "siguiente" -> ruta
 
 
 class Contenido(BaseModel):

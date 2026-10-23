@@ -46,11 +46,13 @@ Dónde está cada cosa:
 - leer_material: el texto de un archivo de esa lista o de un adjunto de tarea. Úsalo para
   estudiar, resumir o responder preguntas sobre el contenido del ramo.
 - notas: notas publicadas del curso.
-- presentacion_curso: presentación del ramo (programa, equipo docente, horario, evaluación) y la
-  lista de secciones que tiene el curso en U-Cursos.
-- leer_seccion: cualquier otra sección del curso (calendario, foro, clases, enlaces,
-  material_alumnos, asistencias2, ...). Con `ruta` abre un item (un tema del foro, un evento).
-- horario: horario semanal del usuario con todos sus cursos.
+- presentacion_curso: datos del ramo (institución, programa del curso para leer con leer_material)
+  y la lista de secciones que tiene el curso en U-Cursos.
+- foro: temas del foro con autor, rol (profesor, auxiliar, ayudante, alumno), fecha y respuestas.
+- calendario: eventos de una semana del curso (cátedras, auxiliares, controles) con hora y sala.
+- horario: la semana del usuario con todos sus cursos.
+- leer_seccion: cualquier otra sección del curso (clases, enlaces, material_alumnos,
+  asistencias2, ...). Con `ruta` abre un item o un link interno.
 
 Cómo responder según lo que pidan:
 - "¿Qué entra en el control/examen?": novedades primero (suele anunciarse ahí) y luego
@@ -59,12 +61,14 @@ Cómo responder según lo que pidan:
   archivos relevantes por título y fecha, y leer_material para leerlos. Cita de qué archivo
   y página sale cada cosa.
 - "¿Cómo voy en el ramo?": notas, y si sirve, tareas.
-- "¿Qué tengo esta semana?": tareas con desde/hasta de esta semana (la respuesta trae `hoy`)
-  y novedades de los cursos que correspondan.
+- "¿Qué tengo esta semana?": horario (clases y eventos), tareas con desde/hasta de esta semana
+  (la respuesta trae `hoy`) y novedades de los cursos que correspondan.
 - "¿De qué se trata la tarea 3?": tareas para obtener su id y luego detalle_tarea.
-- "¿Cómo se evalúa el ramo?", "¿quién es el profe?": presentacion_curso.
-- "¿Cuándo es el control?": novedades y leer_seccion con seccion="calendario".
-- "¿Qué dijeron en el foro?": leer_seccion con seccion="foro", y `ruta` para abrir un tema.
+- "¿Cómo se evalúa el ramo?": presentacion_curso y leer_material sobre su programa; si no está
+  ahí, novedades.
+- "¿Cuándo es el control?": novedades y calendario (con `fecha` para otras semanas;
+  `eventos_por_dia` dice qué días tienen eventos).
+- "¿Qué dijeron en el foro?", "¿qué dijo el profe?": foro (mira `rol`), y `tema` para abrir uno.
 
 Reglas:
 - Si algo no está en U-Cursos, dilo. No inventes fechas, notas ni contenidos.
@@ -438,7 +442,7 @@ def tareas(
         ts = [t for t in ts if t.fecha_limite and t.fecha_limite[:10] <= d_hasta]
     ts.sort(key=lambda t: (t.fecha_limite is None, t.fecha_limite or ""))
     return {
-        "hoy": f"{hoy} ({DIAS[hoy_d.weekday()]})",
+        "hoy": _hoy(),
         "total": len(ts),
         "tareas": [t.model_dump() for t in ts],
         "avisos": avisos,
@@ -604,12 +608,12 @@ def _contenido(c, desde: int, limite: int) -> dict:
 @mcp.tool(annotations=SOLO_LECTURA)
 @errores_legibles
 def presentacion_curso(curso_path: str) -> dict:
-    """Presentación del ramo: programa, equipo docente, horario de cátedras y auxiliares,
-    evaluación y demás datos del curso.
+    """Presentación del ramo ("Datos del curso"): institución, cursos asociados y el programa del
+    curso, que viene en `archivos`: léelo con leer_material para ver contenidos, evaluación y
+    bibliografía. Si el curso no tiene esa sección, trae su portada.
 
-    También trae `secciones`: las secciones que tiene el curso en U-Cursos, para leer_seccion.
-    Si el programa es un archivo, aparece en `archivos` (léelo con leer_material); si es un link
-    externo, en `enlaces`.
+    También trae `secciones`: las secciones que tiene el curso en U-Cursos (para foro,
+    calendario o leer_seccion).
     """
     path = curso_inscrito(curso_path)
     curso = cursos_inscritos()[path]
@@ -633,14 +637,14 @@ def presentacion_curso(curso_path: str) -> dict:
 @mcp.tool(annotations=SOLO_LECTURA)
 @errores_legibles
 def leer_seccion(curso_path: str, seccion: str, ruta: str | None = None, desde: int = 0, limite: int = 20) -> dict:
-    """Lee una sección del curso que no tiene tool propia: calendario, foro, clases, enlaces,
-    material_alumnos, asistencias2, historial, datos_curso, ...
+    """Lee una sección del curso que no tiene tool propia: clases, enlaces, material_alumnos,
+    asistencias2, historial, archivos de comunidades, ... (para foro y calendario usa sus tools).
 
     `seccion` es el nombre de la URL (presentacion_curso entrega las que tiene el curso). Devuelve
-    `items` (temas del foro, eventos, clases), `tablas`, `campos`, `texto`, `archivos` (su
-    `descarga` va a leer_material) y `enlaces`. Para abrir un item o un enlace interno (un tema
-    del foro, la página 2), pásalo en `ruta`. Los items vienen por partes: si `siguiente_desde` no
-    es None, vuelve a llamar con `desde`. No abre correo, encuestas ni integrantes.
+    `items`, `tablas`, `campos`, `texto`, `archivos` (su `descarga` va a leer_material) y
+    `enlaces`. Para abrir un item o un enlace interno, pásalo en `ruta`. Los items vienen por
+    partes: si `siguiente_desde` no es None, vuelve a llamar con `desde`. No abre correo,
+    encuestas ni integrantes.
     """
     path = curso_inscrito(curso_path)
     nombre, destino = ruta_seccion(path, seccion, ruta)
@@ -649,12 +653,145 @@ def leer_seccion(curso_path: str, seccion: str, ruta: str | None = None, desde: 
     return {"curso_path": path, "seccion": nombre, **_contenido(c, desde, limite), "aviso": AVISO_CONTENIDO}
 
 
+def _hoy() -> str:
+    hoy = datetime.now(parsers.SANTIAGO).date()
+    return f"{hoy.isoformat()} ({DIAS[hoy.weekday()]})"
+
+
+def _paginas_a_la_vista(f) -> list[int]:
+    return sorted({f.pagina, *(int(k) for k in f.paginas if k.isdigit())})
+
+
 @mcp.tool(annotations=SOLO_LECTURA)
 @errores_legibles
-def horario() -> dict:
-    """Horario semanal del usuario (cátedras, auxiliares y laboratorios de sus cursos), tal como lo muestra U-Cursos."""
-    c = parsers.parse_contenido(client().horario(), f"/usuario/{client().user_id}/horario/")
-    return {**c.model_dump(), "url": "horario"}  # sin el identificador del usuario
+def foro(curso_path: str, pagina: int = 1, tema: str | None = None, solo_nuevos: bool = False) -> dict:
+    """Foro de un curso: temas con título, autor, `rol` (profesor de catedra, profesor auxiliar,
+    ayudante, alumno), fecha ISO 8601, texto y sus respuestas, en el orden de U-Cursos.
+
+    `pagina` recorre los temas más antiguos (vienen ~10 por página; `paginas_disponibles` dice
+    cuáles hay). `tema` (su `id` o `url`) abre un tema solo. `solo_nuevos` deja los temas con algo
+    sin leer. Para "¿qué dijo el profe?", fíjate en `rol`.
+    """
+    path = curso_inscrito(curso_path)
+    anio = cursos_inscritos()[path].anio
+
+    def ruta_foro(ref: str) -> str:
+        nombre, destino = ruta_seccion(path, "foro", ref)
+        if nombre != "foro":
+            raise ToolError("Ese link no es del foro del curso.")
+        return destino
+
+    if tema is not None:
+        ref = tema.strip()
+        destino = ruta_foro(f"o/{ref}" if ref.isdigit() else ref)
+        html = client().get_html(destino)
+        f = parsers.parse_foro(html, destino, anio)
+        if not f.temas:  # la página de un tema no tiene fixture: si no calza, el lector genérico
+            c = parsers.parse_contenido(html, destino, anio, path)
+            return {"curso_path": path, **_contenido(c, 0, 50), "aviso": AVISO_CONTENIDO}
+    else:
+        f = parsers.parse_foro(servicio(path, "foro"), f"/{path}/foro/", anio)
+        if pagina != f.pagina:
+            ruta = f.paginas.get(str(pagina))
+            if ruta is None:
+                hay = ", ".join(map(str, _paginas_a_la_vista(f)))
+                raise ToolError(f"No encontré la página {pagina} del foro. Páginas a la vista: {hay}.")
+            destino = ruta_foro(ruta)
+            f = parsers.parse_foro(client().get_html(destino), destino, anio)
+    temas = [t for t in f.temas if t.nuevo] if solo_nuevos else f.temas
+    return {
+        "curso_path": path,
+        "pagina": f.pagina,
+        "paginas_disponibles": _paginas_a_la_vista(f),
+        "hay_mas_paginas": "siguiente" in f.paginas,
+        "temas": [t.model_dump() for t in temas],
+        "aviso": AVISO_CONTENIDO,
+    }
+
+
+# Saltos de semana en semana que se siguen para llegar a una fecha (cada uno es una consulta).
+MAX_SALTOS_SEMANA = 6
+
+
+def _semana_con(fecha: str | None, c, cargar):
+    """Lleva el calendario `c` a la semana de `fecha` siguiendo los links de la propia página
+    (anterior/siguiente, o el día en el mapa del año): así no se adivina la URL de U-Cursos."""
+    if fecha is None or c.semana_inicio is None or c.semana_inicio <= fecha <= c.semana_fin:
+        return c
+    saltos = (date.fromisoformat(fecha) - date.fromisoformat(c.semana_inicio)).days // 7
+    if abs(saltos) <= MAX_SALTOS_SEMANA:
+        sentido = "siguiente" if saltos > 0 else "anterior"
+        for _ in range(abs(saltos)):
+            if not (ruta := c.rutas.get(sentido)) or (nuevo := cargar(ruta)) is None:
+                break
+            c = nuevo
+        if c.semana_inicio and c.semana_inicio <= fecha <= c.semana_fin:
+            return c
+    if (ruta := c.rutas.get(fecha)) and (nuevo := cargar(ruta)) is not None:
+        return nuevo
+    raise ToolError(
+        f"No pude llegar al {fecha} desde la semana del {c.semana_inicio} al {c.semana_fin}. "
+        "`eventos_por_dia` de esa respuesta dice qué días del año tienen eventos."
+    )
+
+
+def _respuesta_calendario(c) -> dict:
+    return {"hoy": _hoy(), **c.model_dump(), "aviso": AVISO_CONTENIDO}
+
+
+@mcp.tool(annotations=SOLO_LECTURA)
+@errores_legibles
+def calendario(curso_path: str, fecha: str | None = None) -> dict:
+    """Calendario de un curso por semana: cátedras, auxiliares, controles, entregas y otros eventos,
+    con día, `inicio` y `fin` (ISO 8601, hora de Chile), tipo y sala.
+
+    Sin `fecha` muestra la semana actual; con `fecha` (AAAA-MM-DD o "hoy") la semana de ese día.
+    `eventos_por_dia` cuenta los eventos de cada día del año (sirve para ubicar controles fuera de
+    la semana) y `feriados` lista los del año.
+    """
+    path = curso_inscrito(curso_path)
+
+    def cargar(ruta: str):
+        nombre, destino = ruta_seccion(path, "calendario", ruta)
+        if nombre != "calendario":
+            raise ToolError("Ese link no es del calendario del curso.")
+        return parsers.parse_calendario(client().get_html(destino), destino)
+
+    c = parsers.parse_calendario(servicio(path, "calendario"), f"/{path}/calendario/") or cargar("semana")
+    if c is None:
+        raise ToolError("No reconocí la vista semanal del calendario. Prueba leer_seccion con seccion=\"calendario\".")
+    return {"curso_path": path, **_respuesta_calendario(_semana_con(_fecha_param(fecha, "fecha"), c, cargar))}
+
+
+def ruta_en_curso_usuario(ruta: str, prefijo: str) -> str:
+    """Valida un link del horario del usuario: dentro de `prefijo`, sin acciones ni '..'."""
+    u = urlparse(ruta)
+    if u.hostname not in (None, "www.u-cursos.cl", "u-cursos.cl"):
+        raise ToolError("Solo se permiten links de u-cursos.cl.")
+    ruta = u.path + (f"?{u.query}" if u.query else "")
+    if not ruta.startswith(prefijo) or "/../" in ruta or _es_accion(ruta[len(prefijo):]):
+        raise ToolError("Ese link no es del horario.")
+    return ruta
+
+
+@mcp.tool(annotations=SOLO_LECTURA)
+@errores_legibles
+def horario(fecha: str | None = None) -> dict:
+    """Horario semanal del usuario con todos sus cursos: cátedras, auxiliares, laboratorios y
+    eventos, con día, `inicio` y `fin` (ISO 8601, hora de Chile), tipo, sala y `curso` (con su path).
+
+    Sin `fecha` muestra la semana actual; con `fecha` (AAAA-MM-DD o "hoy") la semana de ese día.
+    """
+    prefijo = f"/usuario/{client().user_id}/horario"
+
+    def cargar(ruta: str):
+        ruta = ruta_en_curso_usuario(ruta, prefijo)
+        return parsers.parse_calendario(client().get_html(ruta), ruta)
+
+    c = parsers.parse_calendario(client().horario(), f"{prefijo}/") or cargar(f"{prefijo}/semana")
+    if c is None:
+        raise ToolError("No reconocí la vista semanal del horario en U-Cursos.")
+    return _respuesta_calendario(_semana_con(_fecha_param(fecha, "fecha"), c, cargar))
 
 
 @mcp.tool(annotations=ESCRIBE_LOCAL)

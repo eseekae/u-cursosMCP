@@ -263,9 +263,12 @@ REALES = {
     "material_docente": parsers.parse_material,
     "notas": parsers.parse_notas,
     "novedades": parsers.parse_novedades,
+    "foro": lambda html: parsers.parse_foro(html, "/").temas,
+    "calendario": lambda html: parsers.parse_calendario(html, "/").eventos,
+    "horario": lambda html: parsers.parse_calendario(html, "/").eventos,
     **{
         nombre: lambda html: (c := parsers.parse_contenido(html, "/")).items or c.tablas or c.campos or c.texto
-        for nombre in ("datos_curso", "calendario", "foro", "clases", "enlaces", "horario")
+        for nombre in ("datos_curso", "clases", "enlaces")
     },
 }
 
@@ -278,3 +281,79 @@ def test_fixture_real(nombre, parser, carpeta):
     if not archivo.exists():
         pytest.skip(f"Falta {carpeta or 'fixtures'}/{archivo.name}: captúralo con scripts/capturar_html.py")
     assert parser(archivo.read_text(encoding="utf-8")), f"{nombre}: el parser no sacó nada"
+
+
+# ---------------------------------------------------------------- esqueletos reales (10/2026)
+
+ESQUELETOS = FIXTURES / "esqueletos"
+CURSO1 = "ingenieria/2026/2/CURSO1/7"
+
+
+def _esqueleto(nombre):
+    return (ESQUELETOS / f"{nombre}.html").read_text(encoding="utf-8")
+
+
+def test_datos_curso_real():
+    c = parsers.parse_contenido(_esqueleto("datos_curso"), f"/{CURSO1}/datos_curso/", 2026, CURSO1)
+    assert list(c.campos) == ["Institución", "Disponible desde", "Cursos Asociados", "Programa del Curso"]
+    assert [a.descarga for a in c.archivos] == [f"/{CURSO1}/datos_curso/bajar_programa"]
+
+
+def test_foro_real():
+    f = parsers.parse_foro(_esqueleto("foro"), f"/{CURSO1}/foro/", 2026)
+    assert (len(f.temas), sum(len(t.respuestas) for t in f.temas), f.pagina) == (10, 24, 1)
+    assert {t.rol for t in f.temas} == {"alumno", "ayudante", "profesor auxiliar", "profesor de catedra"}
+    t = f.temas[1]
+    assert (t.id, t.autor, t.rol, t.fecha, t.lecturas, t.total_respuestas, t.nuevo) == (
+        "10009", "Persona 2", "ayudante", "2026-10-13T20:47:00-03:00", 100, 2, True,
+    )
+    assert t.url == f"/{CURSO1}/foro/o/10009" and t.texto
+    r = t.respuestas[1]
+    assert (r.id, r.autor, r.rol, r.fecha, r.nuevo) == ("10011", "Persona 3", None, "2026-10-21T14:02:00-03:00", True)
+
+
+def test_calendario_real():
+    c = parsers.parse_calendario(_esqueleto("calendario"), f"/{CURSO1}/calendario/")
+    assert (c.semana_inicio, c.semana_fin, len(c.eventos)) == ("2026-10-19", "2026-10-25", 6)
+    assert [(e.dia, e.inicio, e.fin, e.sala) for e in c.eventos[1:3]] == [
+        ("martes", "2026-10-20T16:15:00-03:00", "2026-10-20T17:45:00-03:00", "X10"),
+        ("miércoles", "2026-10-21T08:30:00-03:00", "2026-10-21T10:00:00-03:00", "X305"),
+    ]
+    assert "2026-10-12" in c.feriados and c.eventos_por_dia["2026-10-20"] == 2
+
+
+def test_horario_real():
+    c = parsers.parse_calendario(_esqueleto("horario"), "/usuario/x/horario/")
+    assert (len(c.eventos), sum(e.todo_el_dia for e in c.eventos)) == (27, 7)
+    assert all(e.inicio is None for e in c.eventos if e.todo_el_dia)
+    assert sorted({e.curso.codigo for e in c.eventos if e.curso}) == ["CURSO1", "CURSO2", "CURSO3", "CURSO4", "CURSO5"]
+    lunes = [e for e in c.eventos if e.curso and e.dia == "lunes"]
+    assert lunes[0].curso.path == "bachillerato/2026/2/CURSO1/1" and lunes[0].inicio == "2026-10-19T10:15:00-03:00"
+
+
+# ---------------------------------------------------------------- foro y calendario sintéticos
+
+def test_foro_sin_menu_ni_rol_en_respuestas():
+    html = """<div id="raiz_7"><div class="sticky objetoflex"><div class="cargo cargo-profesor_de_catedra"></div>
+<div><h1><a id="mensaje-titulo" href="#">Fecha del C2</a><em class="lecturas">40</em></h1>
+<h2><a class="usuario" href="/usuario/x/">Persona 1</a><em><span class="only-excel">2026-10-20 18:30:00</span></em></h2></div></div>
+<div id="mensaje_7" class="msg c7 raiz"><div class="container"><div class="texto">Será el 6/11.
+<ul class="opciones"><li><a class="permalink" href="https://www.u-cursos.cl/c/foro/o/7">Permalink</a></li></ul></div></div></div></div>"""
+    (t,) = parsers.parse_foro(html, "/c/foro/").temas
+    assert (t.titulo, t.rol, t.texto, t.url, t.total_respuestas) == ("Fecha del C2", "profesor de catedra", "Será el 6/11.", "/c/foro/o/7", 0)
+
+
+def test_calendario_que_cruza_el_anio():
+    html = """<ul class="paginas"><li class="sel"><span>2026 - Semana 1 - 29/12 al 04/01</span></li></ul>
+<table class="dhorario"><thead><tr><th>Horas</th><th>Lunes 29</th><th>Martes 30</th><th>Miércoles 31</th><th>Jueves 1</th></tr></thead>
+<tbody><tr><td class="horas"></td><td></td><td></td><td></td>
+<td><div class="bloque"><h1>Examen<div class="pill">Control</div><strong>B12</strong></h1><h2>09:00 - 12:00</h2></div></td></tr></tbody></table>"""
+    c = parsers.parse_calendario(html, "/c/calendario/")
+    (e,) = c.eventos
+    assert (c.semana_inicio, e.fecha, e.dia, e.inicio, e.titulo, e.tipo, e.sala) == (
+        "2025-12-29", "2026-01-01", "jueves", "2026-01-01T09:00:00-03:00", "Examen", "Control", "B12",
+    )
+
+
+def test_calendario_otra_vista_devuelve_none():
+    assert parsers.parse_calendario("<div>vista mes</div>", "/c/calendario/") is None

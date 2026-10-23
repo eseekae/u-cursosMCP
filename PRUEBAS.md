@@ -11,7 +11,7 @@ Si algo falla al arrancar, el log está en Claude Desktop: Configuración → De
 ## 1. Instalación
 
 - **Haz:** Configuración → Extensiones, arrastra `ucursos.mcpb` e instala.
-- **Esperado:** aparece "U-Cursos (solo lectura)" versión 0.9.0 activada, sin error. En un chat, el ícono de herramientas muestra 13 tools (entre ellas `presentacion_curso` y `leer_seccion`).
+- **Esperado:** aparece "U-Cursos (solo lectura)" versión 0.9.0 activada, sin error. En un chat, el ícono de herramientas muestra 15 tools (entre ellas `foro`, `calendario` y `horario`).
 - **Anota:** cuánto tardó la primera vez y si salió algún error.
 
 ## 1b. Instalación con el ejecutable (ChatGPT de escritorio)
@@ -79,18 +79,20 @@ Si algo falla al arrancar, el log está en Claude Desktop: Configuración → De
 - **Esperado:** títulos, fechas y el **texto completo** igual que en U-Cursos (no cortado a la mitad), con sus enlaces; las notas como tabla con las mismas evaluaciones.
 - **Anota:** diferencias. El parser de novedades también está sin validar.
 
-## 8b. Presentación del ramo, otras secciones y horario
+## 8b. Presentación del ramo, foro, calendario y horario
 
-Estas tools usan un lector genérico (no hay HTML real de estas secciones todavía): lo importante es anotar qué sale vacío o mezclado.
+Foro, calendario y horario tienen parser propio validado con esqueletos reales. Falta probar la navegación (otra página del foro, otra semana), que depende de links que no venían en los esqueletos.
 
-- **Escribe:** `¿Cómo se evalúa <ramo> y quién es el profe?`
-- **Esperado:** Claude llama `presentacion_curso`; los datos coinciden con "Datos del curso" en U-Cursos (o con la portada si el curso no la tiene: `fuente` lo dice) y `secciones` lista las pestañas del ramo, sin correo, encuestas ni integrantes.
-- **Escribe:** `¿Qué hay en el calendario de <ramo>?` y `¿Qué preguntaron últimamente en el foro de <ramo>?` y luego `Ábreme el primer tema`
-- **Esperado:** `leer_seccion` con `calendario` y `foro`; los temas salen en `items` con título, autor y fecha, y el tema se abre pasando su `url` en `ruta`. Nada del menú lateral ni de otros ramos en `texto` o `enlaces`.
-- **Escribe:** `¿Cuál es mi horario?`
-- **Esperado:** `horario` trae los bloques de la semana con sus ramos, igual que en U-Cursos.
+- **Escribe:** `¿Cómo se evalúa <ramo>?`
+- **Esperado:** Claude llama `presentacion_curso` (institución, cursos asociados, programa en `archivos`) y lee el programa con `leer_material`. `secciones` lista las pestañas del ramo, sin correo, encuestas ni integrantes.
+- **Escribe:** `¿Qué dijo el profe en el foro de <ramo>?` y luego `Muéstrame la página 2 del foro` y `Ábreme el tema <título>`
+- **Esperado:** `foro` trae los temas como en U-Cursos, con su `rol` (profesor de cátedra, profesor auxiliar, ayudante, alumno) y sus respuestas. La página 2 coincide con la de U-Cursos. Al abrir un tema, si sale `texto` en vez de `temas`, anótalo: la página de un tema no tiene fixture.
+- **Escribe:** `¿Qué hay en el calendario de <ramo> esta semana?` y `¿Y la semana del <fecha en 2 o 3 semanas más>?`
+- **Esperado:** `calendario` con los mismos eventos, horas y salas que U-Cursos; con `fecha` salta a esa semana.
+- **Escribe:** `¿Cuál es mi horario esta semana?` y `¿Qué tengo el <día de la próxima semana>?`
+- **Esperado:** `horario` con todos tus ramos, igual que en U-Cursos, y cada bloque con su curso.
 - **Prueba también:** en una comunidad, `¿Qué archivos hay en <comunidad>?`: `presentacion_curso` lista la sección de archivos y `leer_seccion` la lee.
-- **Anota:** por cada sección, si sale vacía, si `texto` trae basura del menú, si los items quedan partidos o juntos, y el nombre de la sección en la URL. Mejor aún: captura la página con `scripts/capturar_html.py` (ver README) y sube solo su esqueleto, para darle un parser propio.
+- **Anota:** eventos que falten o queden en el día equivocado, temas con respuestas mezcladas, y si `fecha` o `pagina` fallan con "No pude llegar" o "No encontré la página". Si algo no calza, captura la página con `scripts/capturar_html.py` (ver README) y sube solo su esqueleto.
 
 ## 9. Sesión guardada
 
@@ -108,7 +110,7 @@ Estas tools usan un lector genérico (no hay HTML real de estas secciones todav�
 - **Escribe:** `¿Qué material hay en <comunidad>?` (una comunidad, no un ramo)
   - **Esperado:** si `material_docente` da 403, el error dice qué secciones sí tiene la comunidad y Claude sigue con `leer_seccion` en la de archivos. Anota cómo se llama.
 - **Escribe:** `¿Quiénes son mis compañeros de <ramo>?`
-  - **Esperado:** Claude dice que la sección de integrantes no está disponible (el equipo docente sí sale en `presentacion_curso`).
+  - **Esperado:** Claude dice que la sección de integrantes no está disponible.
 - **Sesión vencida:** cierra sesión en U-Cursos desde el navegador y pide `¿Qué tareas tengo pendientes?`
   - **Esperado:** Claude dice que la sesión expiró y llama `iniciar_sesion`; no muestra un error genérico.
 

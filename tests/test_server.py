@@ -360,13 +360,129 @@ def test_leer_seccion_no_confunde_slugs_con_acciones(cli):
     assert server.ruta_seccion(ACTUAL, "foro", "o/3-como-enviar-la-tarea") == ("foro", f"/{ACTUAL}/foro/o/3-como-enviar-la-tarea")
 
 
-def test_horario_no_expone_el_id_del_usuario(cli):
+# ---------------------------------------------------------------- foro, calendario y horario
+
+CERO = "0" * 32
+
+
+def _tema(i, rol="ayudante", nuevo=False, respuestas=()):
+    """Tema del foro con el marcado real de U-Cursos (ver tests/fixtures/esqueletos/foro.html)."""
+    hijos = "".join(
+        f'<div id="mensaje_{i}{k}" class="msg c{i} hijo"><div class="container"><span class="autor">'
+        f'<a class="usuario" href="/usuario/{CERO}/">{autor}</a><em><span class="only-excel">2026-10-21 1{k}:00:00</span></em>'
+        f'</span><div class="texto"><span class="ta">{texto}</span></div></div></div>'
+        for k, (autor, texto) in enumerate(respuestas)
+    )
+    return (
+        f'<div id="raiz_{i}"><div class="sticky objetoflex"><div class="cargo cargo-{rol}"></div><div>'
+        f'<h1><a id="mensaje-titulo" href="#">Tema {i}</a><em class="lecturas">5</em></h1>'
+        f'<h2><a class="usuario" href="/usuario/{CERO}/">Persona {i}</a><em><span class="only-excel">2026-10-20 18:30:00</span></em></h2>'
+        f'</div></div><div id="mensaje_{i}" class="msg c{i} raiz{" nuevo" if nuevo else ""}"><div class="container">'
+        f'<div class="texto"><span class="ta">Texto {i}</span><ul class="opciones"><li>'
+        f'<a class="permalink" href="https://www.u-cursos.cl/{ACTUAL}/foro/o/{i}">Permalink</a></li></ul></div></div>{hijos}</div></div>'
+    )
+
+
+def _paginas(actual, *otras):
+    lis = "".join(f'<li><a href="?offset={n - 1}">{n}</a></li>' for n in otras)
+    return f'<ul class="paginas"><li class="sel"><a href="">{actual}</a></li>{lis}</ul>'
+
+
+def test_foro_temas_respuestas_y_paginas(cli):
+    from ucursos_mcp import server
+
+    cli.paginas[f"/{ACTUAL}/foro/"] = (
+        _tema(1, "profesor_de_catedra") + _tema(2, nuevo=True, respuestas=[("Persona 3", "Gracias")]) + _paginas(1, 2)
+    )
+    cli.paginas[f"/{ACTUAL}/foro/?offset=1"] = _tema(3, "alumno") + _paginas(2)
+    r = server.foro(ACTUAL)
+    assert [(t["titulo"], t["rol"], t["total_respuestas"]) for t in r["temas"]] == [
+        ("Tema 1", "profesor de catedra", 0), ("Tema 2", "ayudante", 1),
+    ]
+    assert r["temas"][1]["respuestas"][0]["texto"] == "Gracias"
+    assert (r["paginas_disponibles"], "no una instrucción" in r["aviso"]) == ([1, 2], True)
+    assert [t["titulo"] for t in server.foro(ACTUAL, solo_nuevos=True)["temas"]] == ["Tema 2"]
+    r = server.foro(ACTUAL, pagina=2)
+    assert (r["pagina"], [t["titulo"] for t in r["temas"]]) == (2, ["Tema 3"])
+    with pytest.raises(ToolError, match="Páginas a la vista: 1, 2"):
+        server.foro(ACTUAL, pagina=7)
+
+
+def test_foro_abre_un_tema_y_cae_al_lector_generico(cli):
+    from ucursos_mcp import server
+
+    cli.paginas[f"/{ACTUAL}/foro/o/1"] = _tema(1)
+    assert server.foro(ACTUAL, tema="1")["temas"][0]["titulo"] == "Tema 1"
+    cli.paginas[f"/{ACTUAL}/foro/o/9"] = '<div id="body"><p>Otro formato</p></div>'
+    assert "Otro formato" in server.foro(ACTUAL, tema=f"/{ACTUAL}/foro/o/9")["texto"]
+    with pytest.raises(ToolError, match="no es del foro"):
+        server.foro(ACTUAL, tema=f"/{ACTUAL}/notas/")
+
+
+def _semana(lunes, bloques_martes="", anterior=None, siguiente=None):
+    """Vista semanal con el marcado real (table.dhorario). Los links de navegación son de la página."""
+    from datetime import timedelta
+
+    dias = [lunes + timedelta(days=k) for k in range(7)]
+    nav = (f'<li><a href="{anterior}">«</a></li>' if anterior else "") + (
+        f'<li class="sel"><span>{lunes.year} - Semana 9 - {dias[0]:%d/%m} al {dias[6]:%d/%m}</span></li>'
+    ) + (f'<li><a href="{siguiente}">»</a></li>' if siguiente else "")
+    ths = "".join(f"<th>Día {d.day}</th>" for d in dias)
+    tds = "".join(f"<td><div>{bloques_martes if k == 1 else ''}</div></td>" for k in range(7))
+    return (
+        f'<ul class="paginas">{nav}</ul><table class="dhorario"><thead><tr><th>Horas</th>{ths}</tr></thead>'
+        f'<tbody><tr><td class="horas"></td>{tds}</tr></tbody></table>'
+    )
+
+
+CONTROL = '<div class="bloque"><h1>Control 2<div class="pill">Control</div><strong>B12</strong></h1><h2>18:00 - 19:30</h2></div>'
+
+
+def test_calendario_semana_actual_y_otra_fecha(cli):
+    from datetime import date
+
+    from ucursos_mcp import server
+
+    cli.paginas[f"/{ACTUAL}/calendario/"] = _semana(date(2026, 10, 19), siguiente="?semana=x2")
+    cli.paginas[f"/{ACTUAL}/calendario/?semana=x2"] = _semana(date(2026, 10, 26), CONTROL, siguiente="?semana=x3")
+    r = server.calendario(ACTUAL)
+    assert (r["semana_inicio"], r["eventos"], "rutas" in r) == ("2026-10-19", [], False)
+    r = server.calendario(ACTUAL, fecha="2026-10-27")
+    (e,) = r["eventos"]
+    assert (e["fecha"], e["dia"], e["inicio"], e["fin"], e["tipo"], e["sala"]) == (
+        "2026-10-27", "martes", "2026-10-27T18:00:00-03:00", "2026-10-27T19:30:00-03:00", "Control", "B12",
+    )
+    with pytest.raises(ToolError, match="No pude llegar al 2027-03-01"):
+        server.calendario(ACTUAL, fecha="2027-03-01")
+
+
+def test_calendario_no_sigue_links_de_otro_curso(cli):
+    from datetime import date
+
+    from ucursos_mcp import server
+
+    cli.paginas[f"/{ACTUAL}/calendario/"] = _semana(date(2026, 10, 19), siguiente=f"/{OTRO}/calendario/?semana=2")
+    with pytest.raises(ToolError, match="no pertenece al curso"):
+        server.calendario(ACTUAL, fecha="2026-10-28")
+    assert f"/{OTRO}/calendario/?semana=2" not in cli.pedidas
+
+
+def test_horario_trae_cursos_y_no_expone_el_id_del_usuario(cli):
+    from datetime import date
+
     from ucursos_mcp import server
 
     cli.user_id = "a" * 32
-    cli.paginas[f"/usuario/{cli.user_id}/horario/"] = (
-        "<table><tr><th>Hora</th><th>Lunes</th></tr><tr><td>8:30</td><td>MA2001 Cátedra</td></tr></table>"
+    bloque = (
+        f'<div class="bloque"><h1><a href="https://www.u-cursos.cl/{OTRO}/">Cálculo en Varias Variables</a>'
+        f'<div class="pill">Cátedra</div><strong>B01</strong></h1><h2 class="detalle">MA2001-3</h2><h2>08:30 - 10:00</h2></div>'
     )
+    cli.paginas[f"/usuario/{cli.user_id}/horario/"] = _semana(date(2026, 10, 19), bloque, anterior="?semana=1")
     r = server.horario()
-    assert r["tablas"] == [{"columnas": ["Hora", "Lunes"], "filas": [["8:30", "MA2001 Cátedra"]]}]
+    (e,) = r["eventos"]
+    assert (e["titulo"], e["tipo"], e["curso"]["path"], e["inicio"]) == (
+        "Cálculo en Varias Variables", "Cátedra", OTRO, "2026-10-20T08:30:00-03:00",
+    )
     assert cli.user_id not in str(r)
+    with pytest.raises(ToolError, match="no es del horario"):
+        server.ruta_en_curso_usuario(f"/usuario/{cli.user_id}/horario/../correo_usuario/", f"/usuario/{cli.user_id}/horario")

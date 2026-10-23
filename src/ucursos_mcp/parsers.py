@@ -11,7 +11,10 @@ Selectores basados en el reconocimiento del 19/10/2026:
   - Material:      .../material_docente/          -> table#materiales (Descargar, N°, Título, Por)
   - Notas:         .../notas/                     -> tabla con encabezado "Evaluación"
   - Novedades:     .../novedades/                 -> div.post.objeto
-  - Otras secciones (datos_curso, calendario, foro, clases, horario, ...): parse_contenido, genérico.
+  - Foro:          .../foro/                      -> div#raiz_N (tema) + div.msg.hijo (respuestas)
+  - Calendario:    .../calendario/ y el horario   -> table.dhorario (div.bloque por evento) y mapa del año (a.n)
+  - Otras secciones (datos_curso, clases, enlaces, ...): parse_contenido, genérico.
+Foro, calendario, horario y datos_curso se validaron con esqueletos reales (tests/fixtures/esqueletos/).
 Los marcados con TODO son suposiciones razonables que hay que validar con HTML real.
 
 Todo el texto que sale de aquí (enunciados, comentarios, novedades) lo escribió alguien del
@@ -20,9 +23,10 @@ curso: es un dato, no una instrucción para el modelo.
 
 from __future__ import annotations
 
+import copy
 import re
 import unicodedata
-from datetime import date, datetime
+from datetime import date, datetime, timedelta
 from urllib.parse import urljoin, urlparse
 from zoneinfo import ZoneInfo
 
@@ -34,13 +38,18 @@ from .models import (
     Curso,
     CursoRef,
     DetalleTarea,
+    Calendario,
     Enlace,
+    Evento,
+    Foro,
     Item,
     Material,
+    MensajeForo,
     Novedad,
     Tabla,
     TablaNotas,
     Tarea,
+    TemaForo,
 )
 
 SANTIAGO = ZoneInfo("America/Santiago")
@@ -316,6 +325,18 @@ ETIQUETAS_DETALLE = {
 }
 
 
+def _fila_de_par(celdas: list[Tag]) -> bool:
+    """Fila "etiqueta | valor": th (o td que termina en ":") y luego un td. Una fila th + th es el
+    encabezado de una tabla, no un par. Puede sobrar alguna celda vacía al final (en datos_curso,
+    "Institución" trae un td de más)."""
+    return (
+        len(celdas) >= 2
+        and celdas[1].name == "td"
+        and (celdas[0].name == "th" or _txt(celdas[0]).endswith(":"))
+        and not any(_txt(c) for c in celdas[2:])
+    )
+
+
 def _pares(soup: BeautifulSoup | Tag) -> dict[str, str]:
     """Pares "etiqueta: valor" de la página: dl/dt-dd, filas th-td y <strong>Etiqueta:</strong> valor."""
     pares: dict[str, str] = {}
@@ -329,8 +350,7 @@ def _pares(soup: BeautifulSoup | Tag) -> dict[str, str]:
         agrega(_txt(dt), _parrafos(dt.find_next_sibling("dd")))
     for tr in soup.find_all("tr"):
         celdas = tr.find_all(["th", "td"], recursive=False)
-        # El valor es td: una fila th + th es el encabezado de una tabla, no un par.
-        if len(celdas) == 2 and celdas[1].name == "td" and (celdas[0].name == "th" or _txt(celdas[0]).endswith(":")):
+        if _fila_de_par(celdas):
             agrega(_txt(celdas[0]), _parrafos(celdas[1]))
     for et in soup.find_all(["strong", "b", "label"]):
         texto = _txt(et)
@@ -500,6 +520,8 @@ MAX_ENLACES = 40
 # TODO validar con HTML real: dónde está el contenido (sin la barra lateral ni el menú).
 CONTENEDORES = ("#body", "#contenido", "#content", "main", "div#cuerpo")
 BASURA = ["script", "style", "noscript", "nav", "iframe", "textarea", "select", "input", "button"]
+# Filas que no son datos del curso (datos_curso: botones para compartir en redes).
+CAMPOS_IGNORADOS = {"compartir"}
 EXTENSION_RE = re.compile(
     r"\.(?:pdf|docx?|pptx?|xlsx?|odt|zip|rar|7z|tar|gz|txt|md|csv|py|ipynb|java|c|cpp|h|m|r|jl|tex|png|jpe?g)$", re.I
 )
@@ -561,7 +583,7 @@ def _celdas(tabla: Tag) -> list[list[Tag]]:
 def _es_de_pares(tabla: Tag) -> bool:
     """Tabla de pares etiqueta/valor (th + td en cada fila): esos van a `campos`."""
     celdas = _celdas(tabla)
-    return bool(celdas) and all(len(c) == 2 and c[0].name == "th" for c in celdas)
+    return bool(celdas) and all(_fila_de_par(c) for c in celdas)
 
 
 def _tabla_generica(tabla: Tag) -> Tabla | None:
@@ -604,7 +626,7 @@ def parse_contenido(html: str, base: str, anio: int | None = None, curso: str | 
         e.extract()
 
     titulo_el = cuerpo.find(["h1", "h2"]) or soup.find("title")
-    campos = _pares(cuerpo)
+    campos = {k: v for k, v in _pares(cuerpo).items() if sin_tildes(k) not in CAMPOS_IGNORADOS}
     enlaces: dict[str, Enlace] = {}
     for a in cuerpo.find_all("a", href=True):
         u = _enlace_util(a["href"], base, curso)
@@ -628,4 +650,215 @@ def parse_contenido(html: str, base: str, anio: int | None = None, curso: str | 
         texto=_parrafos(cuerpo)[:MAX_TEXTO_PAGINA],
         archivos=list(archivos.values()),
         enlaces=list(enlaces.values()),
+    )
+
+
+# ---------------------------------------------------------------- paginación
+
+def _paginacion(soup: BeautifulSoup, base: str) -> dict[str, str]:
+    """Links de ul.paginas (foro y calendario): "2", "3", "anterior", "siguiente" -> ruta.
+
+    Se leen de la página en vez de armarlos: así no hay que adivinar el parámetro de U-Cursos.
+    """
+    rutas: dict[str, str] = {}
+    for li in soup.select("ul.paginas li"):
+        a = li.find("a", href=True)
+        if a is None or not a["href"].strip() or a["href"].startswith(("#", "javascript:")):
+            continue
+        texto = _txt(a)
+        if "siguiente" in li.get("class", []) or texto in ("»", "›"):
+            clave = "siguiente"
+        elif "anterior" in li.get("class", []) or texto in ("«", "‹"):
+            clave = "anterior"
+        else:
+            clave = texto
+        rutas.setdefault(clave, _ruta(base, a["href"]))
+    return rutas
+
+
+def _entero(el: Tag | None) -> int | None:
+    m = re.search(r"\d+", _txt(el))
+    return int(m.group(0)) if m else None
+
+
+# ---------------------------------------------------------------- foro
+
+ROL_RE = re.compile(r"^cargo-(.+)$")
+
+
+def _texto_mensaje(cont: Tag) -> str:
+    """Texto de un mensaje del foro, sin su menú (Responder, Permalink, Reportar)."""
+    texto = cont.select_one(".texto")
+    if texto is None:
+        return ""
+    ta = texto.select_one(".ta")
+    if ta is None:
+        ta = copy.copy(texto)
+        for menu in ta.select("ul.opciones"):
+            menu.decompose()
+    return _parrafos(ta)[:MAX_TEXTO_ITEM]
+
+
+def _mensaje_foro(msg: Tag, base: str, anio: int | None, cabecera: Tag | None = None) -> dict:
+    """Campos de un mensaje (div.msg). El de un tema trae autor, fecha y cargo en su `cabecera`;
+    el de una respuesta, en su span.autor."""
+    cont = msg.find("div", class_="container", recursive=False) or msg
+    datos = cabecera or cont.select_one(".autor") or cont
+    fecha_el = datos.select_one(".only-excel") or datos.select_one(".tiempo_rel")  # "2026-10-21 17:56:21"
+    cargo = cabecera.select_one("div.cargo") if cabecera else None
+    rol = next((m[1].replace("_", " ") for c in cargo.get("class", []) if (m := ROL_RE.match(c))), None) if cargo else None
+    link = cont.select_one("a.permalink[href]")
+    mid = re.search(r"mensaje_(\d+)", msg.get("id", ""))
+    clases = msg.get("class", [])
+    return {
+        "id": mid.group(1) if mid else None,
+        "autor": _txt(datos.select_one("a.usuario")),
+        "rol": rol,
+        "fecha": fecha_iso(_txt(fecha_el), anio) if fecha_el else None,
+        "texto": _texto_mensaje(cont),
+        "url": _ruta(base, link["href"]) if link else None,
+        "nuevo": "nuevo" in clases or "connuevo" in clases,
+    }
+
+
+def parse_foro(html: str, base: str, anio: int | None = None) -> Foro:
+    """Página del foro -> temas (div#raiz_N) con sus respuestas (div.msg.hijo).
+
+    Validado con un esqueleto real (10/2026). La página de un tema (foro/o/<id>) no tiene fixture:
+    se asume el mismo marcado y, si no calza, la tool cae al lector genérico.
+    """
+    soup = _soup(html)
+    temas: list[TemaForo] = []
+    for raiz in soup.select("div[id^=raiz_]"):
+        msg = raiz.select_one("div.msg.raiz") or raiz.select_one("div.msg")
+        if msg is None:
+            continue
+        cab = raiz.select_one("div.objetoflex")
+        h1 = cab.find("h1") if cab else None
+        titulo = (h1.select_one("#mensaje-titulo") or h1.find("a")) if h1 else None
+        n_resp = next((em for em in h1.find_all("em") if em.find(class_=re.compile(r"fa-comment"))), None) if h1 else None
+        respuestas = [MensajeForo(**_mensaje_foro(h, base, anio)) for h in msg.select("div.msg.hijo")]
+        temas.append(
+            TemaForo(
+                **_mensaje_foro(msg, base, anio, cab),
+                titulo=_txt(titulo),
+                lecturas=_entero(h1.select_one("em.lecturas")) if h1 else None,
+                total_respuestas=max(len(respuestas), _entero(n_resp) or 0),
+                respuestas=respuestas,
+            )
+        )
+    actual = _entero(soup.select_one("ul.paginas li.sel"))
+    return Foro(temas=temas, pagina=actual or 1, paginas=_paginacion(soup, base))
+
+
+# ---------------------------------------------------------------- calendario y horario
+
+DIAS = ("lunes", "martes", "miércoles", "jueves", "viernes", "sábado", "domingo")
+HORAS_RE = re.compile(r"(\d{1,2}):(\d{2})\s*-\s*(\d{1,2}):(\d{2})")
+SEMANA_RE = re.compile(
+    r"(?P<anio>\d{4})\D+(?P<semana>\d{1,2})\D+(?P<d1>\d{1,2})/(?P<m1>\d{1,2})\D+(?P<d2>\d{1,2})/(?P<m2>\d{1,2})"
+)
+TOOLTIP_DIA_RE = re.compile(r"(\d{2})/(\d{2})/(\d{4})\s*-\s*(\d+)")
+
+
+def _mapa_anual(soup: BeautifulSoup, base: str) -> list[tuple[date, int, set[str], str | None]]:
+    """Mapa del año bajo el calendario: por día (fecha, cantidad de eventos, clases, ruta).
+    Las clases marcan el feriado y la semana que se está mostrando (sel)."""
+    dias = []
+    for a in soup.select("a.n"):
+        m = TOOLTIP_DIA_RE.search(_txt(a.parent.select_one(".tooltip")) if a.parent else "")
+        if not m:
+            continue
+        try:
+            f = date(int(m[3]), int(m[2]), int(m[1]))
+        except ValueError:
+            continue
+        href = a.get("href", "").strip()
+        dias.append((f, int(m[4]), set(a.get("class", [])), _ruta(base, href) if href and not href.startswith("#") else None))
+    return dias
+
+
+def _fechas_columnas(soup: BeautifulSoup, tabla: Tag, n: int, sel: list[date]) -> list[date | None]:
+    """Fecha de cada columna de días. Primero los días marcados en el mapa anual; si no calzan,
+    el rótulo "2026 - Semana 43 - 19/10 al 25/10" y el número de día de cada encabezado."""
+    if len(sel) == n:
+        return sel
+    rotulo = soup.select_one("ul.paginas li.sel")
+    m = SEMANA_RE.search(_txt(rotulo)) if rotulo else None
+    if not m:
+        return [None] * n
+    anio = int(m["anio"])
+    if int(m["m1"]) == 12 and int(m["m2"]) == 1 and int(m["semana"]) == 1:
+        anio -= 1  # "2026 - Semana 1 - 29/12 al 04/01": el lunes es de diciembre de 2025
+    try:
+        inicio = date(anio, int(m["m1"]), int(m["d1"]))
+    except ValueError:
+        return [None] * n
+    semana = [inicio + timedelta(days=k) for k in range(7)]
+    ths = [th for th in tabla.select("thead th")][1:]  # el primero es "Horas"
+    fechas: list[date | None] = []
+    for i in range(n):
+        numero = _entero(ths[i]) if i < len(ths) else None
+        fechas.append(next((d for d in semana if d.day == numero), semana[i] if i < 7 else None))
+    return fechas
+
+
+def _evento(b: Tag, fecha: date | None, base: str) -> Evento:
+    h1 = b.find("h1")
+    link = h1.find("a", href=True) if h1 else None
+    propio = " ".join(" ".join(s.split()) for s in h1.find_all(string=True, recursive=False) if s.strip()) if h1 else ""
+    horas_el = next((h for h in b.find_all("h2") if "detalle" not in h.get("class", [])), None)
+    m = HORAS_RE.search(_txt(horas_el))
+    inicio = fin = None
+    if m and fecha:
+        try:
+            inicio = datetime(fecha.year, fecha.month, fecha.day, int(m[1]), int(m[2]), tzinfo=SANTIAGO).isoformat()
+            fin = datetime(fecha.year, fecha.month, fecha.day, int(m[3]), int(m[4]), tzinfo=SANTIAGO).isoformat()
+        except ValueError:
+            inicio = fin = None
+    curso = None
+    if link is not None and (mc := CURSO_PREFIJO_RE.match(_ruta(base, link["href"]))):
+        curso = CursoRef(nombre=_txt(link), codigo=mc["codigo"], path=mc["path"])
+    return Evento(
+        fecha=fecha.isoformat() if fecha else None,
+        dia=DIAS[fecha.weekday()] if fecha else "",
+        inicio=inicio,
+        fin=fin,
+        todo_el_dia=m is None,
+        titulo=_txt(link) or propio,
+        tipo=(_txt(h1.select_one(".pill")) or None) if h1 else None,
+        sala=(_txt(h1.find("strong")) or None) if h1 else None,
+        curso=curso,
+    )
+
+
+def parse_calendario(html: str, base: str) -> Calendario | None:
+    """Vista semanal del calendario de un curso o del horario del usuario (table.dhorario).
+
+    Cada columna es un día y cada evento un div.bloque: título (o link al curso, en el horario),
+    tipo (div.pill), sala (strong) y "16:15 - 17:45" (o "Todo el día"). Debajo viene un mapa del
+    año con la cantidad de eventos por día y los feriados. None si la página no es esa vista.
+    Validado con esqueletos reales (10/2026).
+    """
+    soup = _soup(html)
+    tabla = soup.select_one("table.dhorario")
+    if tabla is None:
+        return None
+    fila = tabla.select_one("tbody > tr") or tabla.find("tr")
+    columnas = [td for td in fila.find_all("td", recursive=False) if "horas" not in td.get("class", [])] if fila else []
+    mapa = _mapa_anual(soup, base)
+    sel = sorted(f for f, _, clases, _ in mapa if "sel" in clases)
+    fechas = _fechas_columnas(soup, tabla, len(columnas), sel)
+    eventos = [_evento(b, fecha, base) for td, fecha in zip(columnas, fechas) for b in td.select("div.bloque")]
+    eventos.sort(key=lambda e: (e.fecha or "", e.todo_el_dia is False, e.inicio or ""))
+    dias = [f for f in fechas if f]
+    rutas = {f.isoformat(): r for f, _, _, r in mapa if r}
+    rutas.update({k: v for k, v in _paginacion(soup, base).items() if k in ("anterior", "siguiente")})
+    return Calendario(
+        semana_inicio=min(dias).isoformat() if dias else None,
+        semana_fin=max(dias).isoformat() if dias else None,
+        eventos=eventos,
+        feriados=[f.isoformat() for f, _, clases, _ in mapa if "feriado" in clases],
+        eventos_por_dia={f.isoformat(): n for f, n, _, _ in mapa if n > 0},
+        rutas=rutas,
     )

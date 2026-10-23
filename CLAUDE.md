@@ -41,7 +41,7 @@ scripts/capturar_html.py   baja una página con la sesión: copia local en tests
 tests/test_parsers.py      tests sintéticos + tests sobre fixtures reales (locales o esqueletos) si existen
 tests/test_capturar.py     el esqueleto no deja datos personales y los parsers siguen funcionando sobre él
 tests/test_documentos.py   extracción de texto con archivos armados en memoria
-tests/test_server.py       errores legibles, cursos inscritos, rutas de descarga, paginación, tareas, detalle_tarea, leer_seccion
+tests/test_server.py       errores legibles, cursos inscritos, rutas de descarga, paginación, tareas, detalle_tarea, leer_seccion, foro, calendario y horario (navegación)
 tests/test_auth.py         login por navegador: perfiles falsos, WAL de Firefox/Zen, diagnóstico
 tests/test_login_ventana.py  ventana con pywebview falso, y iniciar_sesion/estado_sesion del server
 tests/test_instalador.py  configs de las apps en carpetas temporales, modo doble clic
@@ -102,11 +102,12 @@ Skill externa opcional: `scrapling` (disponible en claude.ai) sirve si algún d�
 - Tablas: tareas_usuario -> `table.sortable` (N°, Tarea, Fecha Límite, Estado). El estado trae texto sucio ("Entregada 24 Ago 24 de Agosto a las 22:26 hrs"): se normaliza en `parsers.normalizar_estado`. Ahí el campo curso salía vacío (reporte del 21/10/2026), por eso `tareas` recorre la sección `tareas/` de cada curso del semestre. material_docente -> `table#materiales` (Descargar, N°, Título, Por), descarga vía link con `bajar`. notas -> tabla con th "Evaluación". novedades -> `div.post.objeto`.
 - Hay requests AJAX (`?accion=...&_ajax=...` con token csrf). Posible mejora: usar esos endpoints si devuelven JSON.
 - Respuestas en ISO-8859-1.
+- Esqueletos reales (10/2026, `tests/fixtures/esqueletos/`): la barra lateral es `#menu` y el contenido `#body`. datos_curso -> `table.detalle` (Institución, Cursos Asociados, Programa del Curso con link `bajar_programa`); no trae equipo docente ni evaluación. Foro -> `div#raiz_N` por tema (cabecera `div.objetoflex` con `div.cargo.cargo-<rol>`, título, autor y `span.only-excel` con la fecha exacta) y `div.msg.raiz` con sus respuestas `div.msg.hijo`; ~10 temas por página, paginación en `ul.paginas`. Calendario y horario -> `table.dhorario` (una columna por día, eventos `div.bloque` con `h1` título, `.pill` tipo, `strong` sala y `h2` "HH:MM - HH:MM") y debajo un mapa del año (`a.n` + tooltip "dd/mm/aaaa - N", clases `sel` y `feriado`).
 
 ## Pendiente
 
-1. Validar los `TODO` de `parsers.py` con fixtures reales (skill `arreglar-parser`): tabla de `<curso>/tareas/`, página de una tarea (`detalle_tarea`: etiquetas, adjuntos vs. entregados), novedades y el lector genérico `parse_contenido` (contenedor principal, `.objeto` como items). Capturar `tareas`, `detalle_tarea`, `datos_curso`, `calendario`, `foro`, `clases`, `enlaces` y `horario` como fixtures.
-2. `presentacion_curso`, `leer_seccion` y `horario` usan el lector genérico. Con los fixtures, darles parser propio a las que más se usen: calendario (plazos de tareas, controles y evaluaciones en una vista, con fechas ISO) y foro. Anotar el nombre de la sección de archivos de comunidades.
+1. Validar los `TODO` de `parsers.py` con fixtures reales (skill `arreglar-parser`): tabla de `<curso>/tareas/`, página de una tarea (`detalle_tarea`: etiquetas, adjuntos vs. entregados), novedades, la página de un tema del foro (`foro/o/<id>`) y la vista mes/agenda del calendario. Capturar sus esqueletos.
+2. Probar en real la navegación de `foro` (pagina) y `calendario`/`horario` (fecha): los esqueletos de 10/2026 traían los links sin query, así que se leen de la página pero no están validados. Anotar el nombre de la sección de archivos de comunidades.
 3. Detectar expiración de sesión también por redirección a la portada (ya se detecta la redirección a Cuenta UChile).
 4. Evaluaciones de calidad de las tools con `mcp-builder/reference/evaluation.md`.
 5. Confirmar en Windows real la detección del navegador por defecto (ProgId de Zen) y las rutas de ejecutables (ahora solo plan B).

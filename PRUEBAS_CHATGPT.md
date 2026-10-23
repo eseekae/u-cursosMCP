@@ -20,7 +20,7 @@ No pegues capturas con nombres, RUT ni notas de otras personas.
 
 ## 3. Aparece en ChatGPT
 - **Haz:** cierra ChatGPT del todo y ábrelo de nuevo. Mira Settings y la sección de MCP o plugins.
-- **Esperado:** aparece `ucursos` con sus 13 tools.
+- **Esperado:** aparece `ucursos` con sus 15 tools.
 - **Anota:** cómo se llama el menú en tu versión y si la lista de tools sale completa.
 
 ## 4. Primera consulta

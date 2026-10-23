@@ -67,15 +67,23 @@
     },
     {
       "name": "presentacion_curso",
-      "description": "Presentación del ramo: programa, equipo docente, horario y evaluación"
+      "description": "Datos del ramo, su programa y las secciones del curso"
     },
     {
-      "name": "leer_seccion",
-      "description": "Lee otras secciones del curso: calendario, foro, clases, enlaces y más"
+      "name": "foro",
+      "description": "Temas del foro de un curso, con autor, rol y respuestas"
+    },
+    {
+      "name": "calendario",
+      "description": "Eventos de una semana del curso: cátedras, auxiliares, controles"
     },
     {
       "name": "horario",
-      "description": "Tu horario semanal"
+      "description": "Tu semana con todos tus cursos"
+    },
+    {
+      "name": "leer_seccion",
+      "description": "Lee otras secciones del curso: clases, enlaces, material de alumnos y más"
     },
     {
       "name": "descargar_material",

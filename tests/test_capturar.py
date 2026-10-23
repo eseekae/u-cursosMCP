@@ -66,4 +66,4 @@ def test_parsers_funcionan_sobre_el_esqueleto():
     assert item.fecha == "2026-08-24T22:26:00-04:00"
     assert item.url == "/ingenieria/2026/2/CURSO1/3/foro/o/x"
     assert list(c.campos) == ["Profesor", "Sala"]
-    assert [a.descarga for a in c.archivos] == ["/ingenieria/2026/2/CURSO1/3/material_docente/bajar"]
+    assert [a.descarga for a in c.archivos] == ["/ingenieria/2026/2/CURSO1/3/material_docente/bajar?id=5"]
