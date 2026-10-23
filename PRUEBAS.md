@@ -11,25 +11,27 @@ Si algo falla al arrancar, el log está en Claude Desktop: Configuración → De
 ## 1. Instalación
 
 - **Haz:** Configuración → Extensiones, arrastra `ucursos.mcpb` e instala.
-- **Esperado:** aparece "U-Cursos (solo lectura)" versión 0.7.0 activada, sin error. En un chat, el ícono de herramientas muestra 10 tools (entre ellas `detalle_tarea`).
+- **Esperado:** aparece "U-Cursos (solo lectura)" versión 0.8.0 activada, sin error. En un chat, el ícono de herramientas muestra 10 tools (entre ellas `detalle_tarea`).
 - **Anota:** cuánto tardó la primera vez y si salió algún error.
 
 ## 1b. Instalación con el ejecutable (ChatGPT de escritorio)
 
 - **Haz:** descarga `ucursos-mcp-windows.exe` del artefacto del PR (o del release) y haz doble clic.
-- **Esperado:** se abre una ventana con casillas (ChatGPT/Codex, Claude Desktop, Cursor); al pulsar Instalar, la consola lista las apps (`[OK]`) y espera Enter. Existe `%USERPROFILE%\.codex\config.toml` con `[mcp_servers.ucursos]`. Tras reiniciar ChatGPT de escritorio, el server aparece en Settings → Plugins / MCP y responde "Revisa mis cursos".
+- **Esperado:** se abre una ventana con casillas (ChatGPT/Codex, Claude Desktop, Cursor); al pulsar Instalar, la consola lista el programa y las apps (`[OK]`), pregunta si quieres iniciar sesión ahora (con sí, se abre la ventana de U-Cursos y se cierra sola al entrar) y espera Enter. Existe `%USERPROFILE%\.codex\config.toml` con `[mcp_servers.ucursos]`. Tras reiniciar ChatGPT de escritorio, el server aparece en Settings → Plugins / MCP y responde "Revisa mis cursos".
 - **Anota:** si SmartScreen o el antivirus bloquearon el archivo, y si ChatGPT realmente lista las tools (los nombres de menú pueden cambiar por versión).
+- **Actualizar:** con una versión anterior ya instalada (y ChatGPT abierto), vuelve a hacer doble clic con el `.exe` nuevo. Debe decir `Programa: actualizado de la versión X a la 0.8.0` sin error de "archivo en uso" y conservar tu sesión; tras reiniciar ChatGPT, el server responde con la versión nueva (`ucursos-mcp.exe version` en la carpeta de instalación).
 - **Desinstalar:** `ucursos-mcp.exe uninstall` quita la entrada y deja `.ucursos.bak`.
 
 ## 2. Login
 
-- **Escribe:** `¿Tengo sesión activa en U-Cursos?`
-- **Esperado:** Claude llama `iniciar_sesion`, se abre U-Cursos en tu navegador por defecto y Claude te dice cuál es. Inicias sesión como siempre, le dices `listo` y Claude llama `estado_sesion` con ese mismo navegador y confirma "Sesión activa, importada desde <navegador> (perfil ...)".
+- **Escribe:** `¿Tengo sesión activa en U-Cursos?` (sin sesión guardada: borra `~/.ucursos-mcp/ucursos.storage_state.json`)
+- **Esperado:** Claude llama `iniciar_sesion` y se abre una ventana de U-Cursos. Entras con tu clave y captcha; la ventana muestra "Listo" y se cierra sola. Claude llama `estado_sesion` (sin que le avises) y confirma "Sesión activa". El captcha no debe bloquearte.
 - **Prueba también:**
-  - `Inicié sesión en Zen` (o el que no sea el por defecto): debe importar desde ese navegador.
-  - Inicia sesión en un navegador y dile a Claude otro: debe fallar con un diagnóstico que nombra navegador, perfil y cookies encontradas (solo nombres), y sugerir qué hacer. No debe pedirte reintentar igual.
-  - En Windows, con Edge o Chrome: si falla, el diagnóstico debe decir si fue cifrado o archivo bloqueado.
-- **Anota:** en qué navegador se abrió, si coincide con tu navegador por defecto, el texto del diagnóstico si falló (sin valores de cookies) y si Claude esperó tu aviso.
+  - Cerrar la ventana sin entrar: Claude debe preguntar si reintentas o usas tu navegador, sin insistir solo.
+  - Tardar más de un minuto en entrar: Claude debe seguir esperando (`estado_sesion` repetida) sin cortar ni abrir otra ventana.
+  - Con la sesión ya guardada y vigente, repetir la pregunta: no debe abrir nada.
+  - Plan B: `Inicié sesión en Zen` (o `iniciar_sesion` con `navegador`): debe importar desde ese navegador. Con Edge o Chrome en Windows, si falla, el diagnóstico debe decir si fue cifrado o archivo bloqueado y sugerir Firefox o Zen.
+- **Anota:** si el captcha te dejó pasar, cuánto tardó en cerrarse la ventana, si Claude esperó solo o te pidió avisarle, y el texto del diagnóstico si cayó al plan B (sin valores de cookies).
 
 ## 3. Mis cursos
 

@@ -2,7 +2,8 @@
 Instalador: deja el server registrado en las apps de IA que el usuario tenga en su PC.
 
 Pensado para el ejecutable único (doble clic, sin terminal): copia el ejecutable a una carpeta
-estable y agrega una entrada `ucursos` a la config MCP de cada app detectada. No sabe de
+estable y agrega una entrada `ucursos` a la config MCP de cada app detectada. Si ya había una
+versión instalada, la actualiza en el mismo lugar (las apps ya apuntan ahí). No sabe de
 U-Cursos, ni lee cookies ni toca la sesión: solo edita configs de otras apps, con respaldo.
 
 Apps soportadas:
@@ -48,6 +49,26 @@ def carpeta_instalacion() -> Path:
     return base / "ucursos-mcp"
 
 
+def version_actual() -> str:
+    from importlib.metadata import PackageNotFoundError, version
+
+    try:
+        return version("ucursos-mcp")
+    except PackageNotFoundError:
+        return "desconocida"
+
+
+def version_instalada() -> str | None:
+    """Versión del programa ya instalado en la carpeta fija, o None si no hay (o es muy antigua)."""
+    carpeta = carpeta_instalacion()
+    if not (carpeta / EXE).exists():
+        return None
+    try:
+        return (carpeta / "VERSION").read_text(encoding="utf-8").strip() or "anterior"
+    except OSError:
+        return "anterior"  # instalaciones de antes de que se guardara la versión
+
+
 def copiar_ejecutable() -> Path:
     """Copia el ejecutable a una ruta estable (la que queda escrita en las configs)."""
     destino = carpeta_instalacion() / EXE
@@ -55,8 +76,22 @@ def copiar_ejecutable() -> Path:
     if destino.exists() and origen == destino.resolve():
         return destino  # ya corremos desde la carpeta de instalación
     destino.parent.mkdir(parents=True, exist_ok=True)
-    shutil.copy2(origen, destino)
+    viejo = destino.with_name(destino.name + ".viejo")
+    try:
+        viejo.unlink(missing_ok=True)  # resto de una actualización anterior
+    except OSError:
+        pass
+    try:
+        shutil.copy2(origen, destino)
+    except PermissionError:
+        # Windows no deja sobrescribir un .exe en uso (la app de IA lo tiene abierto), pero sí
+        # renombrarlo: lo apartamos y ponemos el nuevo. La app lo carga al reiniciarse.
+        if not destino.exists():
+            raise
+        destino.replace(viejo)
+        shutil.copy2(origen, destino)
     destino.chmod(0o755)
+    (destino.parent / "VERSION").write_text(version_actual(), encoding="utf-8")
     return destino
 
 
@@ -192,15 +227,24 @@ def instalar(ids: list[str] | None = None, copiar: bool | None = None) -> list[R
     """Registra el server. `ids` elige los destinos; sin `ids`, todos los detectados."""
     if copiar is None:
         copiar = empaquetado()
+    resultados: list[Resultado] = []
     if copiar:
+        anterior = version_instalada()
         try:
             copiar_ejecutable()
         except OSError as exc:
-            return [Resultado("Ejecutable", False,
+            return [Resultado("Programa", False,
                               f"no pude copiarlo a {carpeta_instalacion()}: {exc}. "
                               "Cierra ChatGPT/Claude y vuelve a intentar.")]
+        nueva = version_actual()
+        if anterior is None:
+            detalle = f"instalado (versión {nueva})"
+        elif anterior == nueva:
+            detalle = f"ya estaba al día (versión {nueva}), lo dejé listo de nuevo"
+        else:
+            detalle = f"actualizado de la versión {anterior} a la {nueva}"
+        resultados.append(Resultado("Programa", True, detalle))
     cmd, args = comando()
-    resultados: list[Resultado] = []
     for d in destinos():
         if (d.id not in ids) if ids is not None else (not d.detectado):
             continue

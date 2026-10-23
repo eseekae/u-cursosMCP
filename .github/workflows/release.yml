@@ -22,8 +22,8 @@ jobs:
       fail-fast: false
       matrix:
         include:
-          - {os: windows-latest, nombre: ucursos-mcp-windows.exe, origen: dist/ucursos-mcp.exe}
-          - {os: ubuntu-latest, nombre: ucursos-mcp-linux, origen: dist/ucursos-mcp}
+          - {os: windows-latest, nombre: ucursos-mcp-windows.exe, origen: dist/ucursos-mcp.exe, extra: "--collect-all webview --collect-all pythonnet --collect-all clr_loader"}
+          - {os: ubuntu-latest, nombre: ucursos-mcp-linux, origen: dist/ucursos-mcp, extra: ""}
     runs-on: ${{ matrix.os }}
     steps:
       - uses: actions/checkout@v4
@@ -37,12 +37,17 @@ jobs:
           uv pip install -e . pyinstaller
           uv run pyinstaller --onefile --name ucursos-mcp --paths src \
             --collect-submodules browser_cookie3 --collect-all mcp --collect-data tzdata \
-            --copy-metadata ucursos-mcp ucursos_exe.py
+            --copy-metadata ucursos-mcp ${{ matrix.extra }} ucursos_exe.py
           cp "${{ matrix.origen }}" "${{ matrix.nombre }}"
 
       - name: Probar que arranca
         shell: bash
         run: ./"${{ matrix.nombre }}" version
+
+      - name: Probar que la ventana de inicio de sesión carga (Windows)
+        if: runner.os == 'Windows'
+        shell: bash
+        run: ./"${{ matrix.nombre }}" ventana-login --comprobar
 
       - uses: actions/upload-artifact@v4
         with:

@@ -1,26 +1,23 @@
 """
-Login sin automatizar el navegador: tú entras a U-Cursos en tu navegador de siempre
-(Edge, Chrome, Firefox, Zen, Brave...) como cualquier día, y el MCP lee esa sesión tuya que
-ya quedó guardada en el navegador.
+Login sin automatizar nada: el usuario entra a U-Cursos él mismo, como cualquier día, y el MCP
+guarda esa sesión suya. Hay dos caminos, en este orden:
+
+  1. Ventana de inicio de sesión (camino habitual, ver login_ventana.py). Se abre una ventana
+     con U-Cursos, el usuario pone su clave y resuelve el captcha como humano, y al terminar
+     la ventana se cierra sola y la sesión queda guardada. No depende de qué navegador use.
+  2. Su navegador de siempre (respaldo). iniciar_sesion abre U-Cursos en Firefox, Zen, Edge,
+     Chrome, etc., y estado_sesion lee las cookies de ese navegador. En Windows, Chrome y Edge
+     nuevos cifran sus cookies de una forma que no se puede leer: ahí sirven Firefox o Zen.
 
 Por qué así:
-  - U-Cursos entra por Cuenta UChile, con captcha. Un navegador abierto por un programa
-    queda marcado como automatizado y el captcha lo bloquea. Aquí no se automatiza nada:
-    inicias sesión tú, como humano, en tu navegador normal (donde el captcha ni aparece).
-  - Tu clave NUNCA pasa por este código ni por Claude: la escribes en tu navegador.
-  - El MCP solo lee las cookies del dominio de U-Cursos desde el navegador, igual que hace
-    un gestor de contraseñas con tus propios datos. Nada sale de tu computador.
-
-Flujo:
-  1. iniciar_sesion (o `ucursos-login`) abre U-Cursos en un navegador concreto: el que se
-     pida, el que funcionó la última vez o el por defecto del sistema.
-  2. Inicias sesión ahí, normal.
-  3. estado_sesion lee las cookies de ese navegador (o de todos, si no se indica), prueba
-     cada perfil contra U-Cursos y guarda el primero que sirva. Si ninguno sirve, explica
-     qué encontró en cada navegador y perfil.
+  - U-Cursos entra por Cuenta UChile, con captcha. Un navegador abierto y controlado por un
+    programa queda marcado como automatizado y el captcha lo bloquea. Aquí no se controla
+    nada: un humano hace todo el login.
+  - La clave NUNCA pasa por este código ni por la IA: se escribe en la ventana o en el navegador.
+  - Solo se guardan las cookies del dominio de U-Cursos, en este computador.
 
 Variables de entorno:
-  UCURSOS_BROWSER   fuerza un solo navegador (ver navegadores.NAVEGADORES)
+  UCURSOS_BROWSER   fuerza un solo navegador para el camino 2 (ver navegadores.NAVEGADORES)
 """
 
 from __future__ import annotations
@@ -309,13 +306,10 @@ def importar_sesion(
     raise LoginError(msg)
 
 
-def _guardar(cand: Candidato, session_path: Path) -> None:
-    estado = {
-        "cookies": cand.cookies,
-        "origins": [],
-        # De dónde salió, para abrir y leer el mismo navegador la próxima vez.
-        "origen": {"navegador": cand.perfil.navegador, "perfil": cand.perfil.nombre},
-    }
+def guardar_sesion(cookies: list[dict], origen: dict, session_path: Path | None = None) -> None:
+    """Guarda la sesión validada. `origen` dice de dónde salió (navegador y perfil, o la ventana)."""
+    estado = {"cookies": cookies, "origins": [], "origen": origen}
+    session_path = session_path or SESSION_PATH
     # Escritura atómica: el server recarga la sesión cuando cambia este archivo.
     session_path.parent.mkdir(parents=True, exist_ok=True)
     tmp = session_path.with_suffix(".tmp")
@@ -325,6 +319,11 @@ def _guardar(cand: Candidato, session_path: Path) -> None:
     except OSError:
         pass
     tmp.replace(session_path)
+
+
+def _guardar(cand: Candidato, session_path: Path) -> None:
+    # Se recuerda el navegador de origen para abrir y leer el mismo la próxima vez.
+    guardar_sesion(cand.cookies, {"navegador": cand.perfil.navegador, "perfil": cand.perfil.nombre}, session_path)
 
 
 def navegador_guardado(session_path: Path | None = None) -> str | None:
@@ -337,32 +336,52 @@ def navegador_guardado(session_path: Path | None = None) -> str | None:
         return None
 
 
-def main() -> None:
-    """CLI `ucursos-login`: abre U-Cursos, espera a que entres y luego importa la sesión."""
+def _login_con_navegador(navegador: str | None, perfil: str | None) -> int:
+    """Respaldo: abre U-Cursos en el navegador del usuario y, tras entrar, importa su sesión."""
     from .client import validar_cookies  # import local: client importa este módulo
 
-    parser = argparse.ArgumentParser(description="Importa tu sesión de U-Cursos desde tu navegador.")
-    parser.add_argument("--navegador", help=f"uno de: {', '.join(NAVEGADORES)}")
-    parser.add_argument("--perfil", help="nombre (o parte) del perfil del navegador")
-    args = parser.parse_args()
-
     try:
-        nav = navegador_preferido(args.navegador)
+        nav = navegador_preferido(navegador)
     except navegadores.NavegadorDesconocido as exc:
         print(exc, file=sys.stderr)
-        sys.exit(2)
+        return 2
     donde = abrir_ucursos(nav)
-    print(f"Se abrió U-Cursos en {donde}. Inicia sesión ahí.")
+    print(f"Abrí U-Cursos en {donde}. Inicia sesión ahí como siempre.")
     try:
         input("Cuando ya estés dentro, vuelve aquí y presiona Enter...")
     except EOFError:
         pass
     try:
-        cand = importar_sesion(args.navegador, args.perfil, validar=validar_cookies)
+        cand = importar_sesion(navegador, perfil, validar=validar_cookies)
     except LoginError as exc:
         print(exc, file=sys.stderr)
-        sys.exit(1)
-    print(f"Sesión guardada desde {cand.perfil.descripcion} en {SESSION_PATH}")
+        return 1
+    print(f"Listo, la sesión quedó guardada (desde {cand.perfil.descripcion}).")
+    return 0
+
+
+def main() -> None:
+    """CLI `ucursos-login`: abre la ventana de inicio de sesión (o tu navegador, si no se puede)."""
+    from . import login_ventana
+
+    parser = argparse.ArgumentParser(description="Inicia sesión en U-Cursos para que la IA pueda leerlo.")
+    parser.add_argument("--navegador", help=f"usa este navegador en vez de la ventana: {', '.join(NAVEGADORES)}")
+    parser.add_argument("--perfil", help="nombre (o parte) del perfil del navegador")
+    args = parser.parse_args()
+
+    if args.navegador or args.perfil or not login_ventana.disponible():
+        sys.exit(_login_con_navegador(args.navegador, args.perfil))
+
+    print("Se abrió una ventana de U-Cursos. Inicia sesión ahí; se cierra sola cuando termines.")
+    codigo = login_ventana.esperar(login_ventana.lanzar(), None)
+    if codigo == login_ventana.SALIDA_OK:
+        print(f"Listo, la sesión quedó guardada en {SESSION_PATH}")
+        return
+    if codigo == login_ventana.SALIDA_NO_DISPONIBLE:
+        print("No pude abrir la ventana en este equipo. Uso tu navegador.")
+        sys.exit(_login_con_navegador(None, None))
+    print("No se completó el inicio de sesión. Vuelve a intentarlo cuando quieras.", file=sys.stderr)
+    sys.exit(1)
 
 
 if __name__ == "__main__":

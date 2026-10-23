@@ -1,7 +1,10 @@
 """Tests del instalador: configs de las apps en carpetas temporales, nunca las reales."""
 
 import json
+import shutil
+import sys
 import tomllib
+from pathlib import Path
 
 import pytest
 
@@ -87,7 +90,30 @@ def test_launcher_doble_clic_instala(monkeypatch, capsys):
     with pytest.raises(SystemExit) as salida:
         launcher.main([])
     assert salida.value.code == 0
-    assert "Siguiente paso" in capsys.readouterr().out
+    salida = capsys.readouterr().out
+    assert "Qué sigue" in salida and "ventana de U-Cursos" in salida
+
+
+def test_launcher_doble_clic_ofrece_iniciar_sesion(monkeypatch, capsys):
+    monkeypatch.setattr(instalador, "empaquetado", lambda: True)
+    monkeypatch.setattr("ucursos_mcp.ventana.elegir", lambda d: ["chatgpt"])
+    monkeypatch.setattr(instalador, "instalar", lambda ids=None: [instalador.Resultado("X", True, "ok")])
+    monkeypatch.setattr(launcher, "_pausar", lambda: None)
+    monkeypatch.setattr("ucursos_mcp.ventana.ofrecer_login", lambda: True)
+    monkeypatch.setattr(launcher.login_ventana, "disponible", lambda: True)
+    monkeypatch.setattr(launcher.login_ventana, "lanzar", lambda: object())
+    monkeypatch.setattr(launcher.login_ventana, "esperar", lambda proc, seg: launcher.login_ventana.SALIDA_OK)
+    monkeypatch.setattr("sys.stdin", type("T", (), {"isatty": lambda self: True})())
+    with pytest.raises(SystemExit):
+        launcher.main([])
+    assert "ya quedó guardada" in capsys.readouterr().out
+
+
+def test_launcher_ventana_login_sale_con_el_codigo_de_la_ventana(monkeypatch):
+    monkeypatch.setattr(launcher.login_ventana, "correr", lambda: 4)
+    with pytest.raises(SystemExit) as salida:
+        launcher.main(["ventana-login"])
+    assert salida.value.code == 4
 
 
 @pytest.fixture
@@ -110,3 +136,51 @@ def test_instalar_con_ids_respeta_la_eleccion_y_crea_la_config(casa):
     assert [x.app for x in r] == ["Claude Desktop"] and r[0].ok
     assert not (casa / ".codex").exists()
     assert "ucursos" in json.loads(instalador.ruta_claude_desktop().read_text(encoding="utf-8"))["mcpServers"]
+
+
+def _exe_falso(tmp_path, contenido):
+    exe = tmp_path / "origen" / "nuevo.exe"
+    exe.parent.mkdir(exist_ok=True)
+    exe.write_bytes(contenido)
+    return exe
+
+
+def test_instalar_actualiza_la_version_anterior(casa, monkeypatch):
+    destino = instalador.carpeta_instalacion() / instalador.EXE
+    destino.parent.mkdir(parents=True)
+    destino.write_bytes(b"viejo")
+    (destino.parent / "VERSION").write_text("0.7.0")
+    monkeypatch.setattr(sys, "executable", str(_exe_falso(casa, b"nuevo")))
+    monkeypatch.setattr(instalador, "version_actual", lambda: "0.8.0")
+    r = instalador.instalar(["claude"], copiar=True)
+    assert r[0].app == "Programa" and "actualizado de la versión 0.7.0 a la 0.8.0" in r[0].detalle
+    assert destino.read_bytes() == b"nuevo"
+    assert (destino.parent / "VERSION").read_text() == "0.8.0"
+
+
+def test_instalar_con_programa_en_uso_lo_aparta_y_pone_el_nuevo(casa, monkeypatch):
+    """En Windows el .exe en uso no se puede sobrescribir, pero sí renombrar."""
+    destino = instalador.carpeta_instalacion() / instalador.EXE
+    destino.parent.mkdir(parents=True)
+    destino.write_bytes(b"viejo")
+    monkeypatch.setattr(sys, "executable", str(_exe_falso(casa, b"nuevo")))
+    copia_real = shutil.copy2
+    intentos = []
+
+    def copia_bloqueada(origen, dest, *a, **k):
+        if Path(dest) == destino and not intentos:
+            intentos.append(1)  # el primer intento choca con el programa en uso
+            raise PermissionError("en uso")
+        return copia_real(origen, dest, *a, **k)
+
+    monkeypatch.setattr(shutil, "copy2", copia_bloqueada)
+    r = instalador.instalar(["claude"], copiar=True)
+    assert r[0].ok and "anterior" in r[0].detalle  # instalación sin archivo VERSION
+    assert destino.read_bytes() == b"nuevo"
+    assert destino.with_name(destino.name + ".viejo").read_bytes() == b"viejo"
+
+
+def test_primera_instalacion_lo_dice(casa, monkeypatch):
+    monkeypatch.setattr(sys, "executable", str(_exe_falso(casa, b"nuevo")))
+    r = instalador.instalar(["claude"], copiar=True)
+    assert "instalado" in r[0].detalle and "actualizado" not in r[0].detalle
