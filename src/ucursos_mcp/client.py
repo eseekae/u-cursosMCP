@@ -132,6 +132,9 @@ class UCursosClient:
     def tareas_usuario(self) -> str:
         return self.get_html(f"/usuario/{self.user_id}/tareas_usuario/")
 
+    def horario(self) -> str:
+        return self.get_html(f"/usuario/{self.user_id}/horario/")
+
     def servicio_curso(self, curso_path: str, servicio: str) -> str:
         """curso_path ej: 'ingenieria/2026/2/CC1002/7'. servicio ej: 'notas', 'material_docente'."""
         return self.get_html(f"/{curso_path.strip('/')}/{servicio.strip('/')}/")

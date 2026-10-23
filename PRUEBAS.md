@@ -11,7 +11,7 @@ Si algo falla al arrancar, el log está en Claude Desktop: Configuración → De
 ## 1. Instalación
 
 - **Haz:** Configuración → Extensiones, arrastra `ucursos.mcpb` e instala.
-- **Esperado:** aparece "U-Cursos (solo lectura)" versión 0.8.0 activada, sin error. En un chat, el ícono de herramientas muestra 10 tools (entre ellas `detalle_tarea`).
+- **Esperado:** aparece "U-Cursos (solo lectura)" versión 0.9.0 activada, sin error. En un chat, el ícono de herramientas muestra 13 tools (entre ellas `presentacion_curso` y `leer_seccion`).
 - **Anota:** cuánto tardó la primera vez y si salió algún error.
 
 ## 1b. Instalación con el ejecutable (ChatGPT de escritorio)
@@ -19,7 +19,7 @@ Si algo falla al arrancar, el log está en Claude Desktop: Configuración → De
 - **Haz:** descarga `ucursos-mcp-windows.exe` del artefacto del PR (o del release) y haz doble clic.
 - **Esperado:** se abre una ventana con casillas (ChatGPT/Codex, Claude Desktop, Cursor); al pulsar Instalar, la consola lista el programa y las apps (`[OK]`), pregunta si quieres iniciar sesión ahora (con sí, se abre la ventana de U-Cursos y se cierra sola al entrar) y espera Enter. Existe `%USERPROFILE%\.codex\config.toml` con `[mcp_servers.ucursos]`. Tras reiniciar ChatGPT de escritorio, el server aparece en Settings → Plugins / MCP y responde "Revisa mis cursos".
 - **Anota:** si SmartScreen o el antivirus bloquearon el archivo, y si ChatGPT realmente lista las tools (los nombres de menú pueden cambiar por versión).
-- **Actualizar:** con una versión anterior ya instalada (y ChatGPT abierto), vuelve a hacer doble clic con el `.exe` nuevo. Debe decir `Programa: actualizado de la versión X a la 0.8.0` sin error de "archivo en uso" y conservar tu sesión; tras reiniciar ChatGPT, el server responde con la versión nueva (`ucursos-mcp.exe version` en la carpeta de instalación).
+- **Actualizar:** con una versión anterior ya instalada (y ChatGPT abierto), vuelve a hacer doble clic con el `.exe` nuevo. Debe decir `Programa: actualizado de la versión X a la 0.9.0` sin error de "archivo en uso" y conservar tu sesión; tras reiniciar ChatGPT, el server responde con la versión nueva (`ucursos-mcp.exe version` en la carpeta de instalación).
 - **Desinstalar:** `ucursos-mcp.exe uninstall` quita la entrada y deja `.ucursos.bak`.
 
 ## 2. Login
@@ -79,6 +79,19 @@ Si algo falla al arrancar, el log está en Claude Desktop: Configuración → De
 - **Esperado:** títulos, fechas y el **texto completo** igual que en U-Cursos (no cortado a la mitad), con sus enlaces; las notas como tabla con las mismas evaluaciones.
 - **Anota:** diferencias. El parser de novedades también está sin validar.
 
+## 8b. Presentación del ramo, otras secciones y horario
+
+Estas tools usan un lector genérico (no hay HTML real de estas secciones todavía): lo importante es anotar qué sale vacío o mezclado.
+
+- **Escribe:** `¿Cómo se evalúa <ramo> y quién es el profe?`
+- **Esperado:** Claude llama `presentacion_curso`; los datos coinciden con "Datos del curso" en U-Cursos (o con la portada si el curso no la tiene: `fuente` lo dice) y `secciones` lista las pestañas del ramo, sin correo, encuestas ni integrantes.
+- **Escribe:** `¿Qué hay en el calendario de <ramo>?` y `¿Qué preguntaron últimamente en el foro de <ramo>?` y luego `Ábreme el primer tema`
+- **Esperado:** `leer_seccion` con `calendario` y `foro`; los temas salen en `items` con título, autor y fecha, y el tema se abre pasando su `url` en `ruta`. Nada del menú lateral ni de otros ramos en `texto` o `enlaces`.
+- **Escribe:** `¿Cuál es mi horario?`
+- **Esperado:** `horario` trae los bloques de la semana con sus ramos, igual que en U-Cursos.
+- **Prueba también:** en una comunidad, `¿Qué archivos hay en <comunidad>?`: `presentacion_curso` lista la sección de archivos y `leer_seccion` la lee.
+- **Anota:** por cada sección, si sale vacía, si `texto` trae basura del menú, si los items quedan partidos o juntos, y el nombre de la sección en la URL. Mejor aún: captura la página con `scripts/capturar_html.py` (ver README) para darle un parser propio.
+
 ## 9. Sesión guardada
 
 - **Haz:** cierra Claude Desktop por completo (también desde la bandeja del sistema), ábrelo y en un chat nuevo escribe `¿Qué tareas tengo pendientes?`
@@ -93,7 +106,9 @@ Si algo falla al arrancar, el log está en Claude Desktop: Configuración → De
 - **Escribe:** `Entrega la tarea <tarea> con este archivo`
   - **Esperado:** Claude dice que no puede entregar tareas.
 - **Escribe:** `¿Qué material hay en <comunidad>?` (una comunidad, no un ramo)
-  - **Esperado:** si `material_docente` da 403, el error dice qué secciones sí tiene la comunidad. Anota cuáles lista: sirve para la tool de archivos de comunidades.
+  - **Esperado:** si `material_docente` da 403, el error dice qué secciones sí tiene la comunidad y Claude sigue con `leer_seccion` en la de archivos. Anota cómo se llama.
+- **Escribe:** `¿Quiénes son mis compañeros de <ramo>?`
+  - **Esperado:** Claude dice que la sección de integrantes no está disponible (el equipo docente sí sale en `presentacion_curso`).
 - **Sesión vencida:** cierra sesión en U-Cursos desde el navegador y pide `¿Qué tareas tengo pendientes?`
   - **Esperado:** Claude dice que la sesión expiró y llama `iniciar_sesion`; no muestra un error genérico.
 

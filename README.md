@@ -70,8 +70,11 @@ Es siempre igual y lo hace Claude por ti: cuando haga falta, **se abre una venta
 | `leer_material(curso_path, descarga, desde=0)` | Texto de un PDF, .docx, .pptx o archivo de texto (material o adjunto de tarea), por partes |
 | `descargar_material(curso_path, descarga)` | Baja un archivo (material o adjunto de tarea) a `Descargas/U-Cursos` |
 | `novedades(curso_path, limite=10)` | Últimos anuncios, con texto completo y enlaces |
+| `presentacion_curso(curso_path)` | Presentación del ramo (programa, equipo docente, horario, evaluación) y las secciones que tiene el curso |
+| `leer_seccion(curso_path, seccion, ruta=None, desde=0, limite=20)` | Cualquier otra sección: calendario, foro, clases, enlaces, material de alumnos, asistencias, archivos de comunidades... Con `ruta` abre un tema del foro o un evento |
+| `horario()` | Tu horario semanal con todos tus cursos |
 
-Si una sección no existe o da 403 (por ejemplo en una comunidad), el error dice qué secciones sí tiene ese curso.
+Si una sección no existe o da 403 (por ejemplo en una comunidad), el error dice qué secciones sí tiene ese curso. `leer_seccion` no abre correo, encuestas ni integrantes (la lista de integrantes trae datos de todo el curso), ni sigue links que ejecutan acciones.
 
 ## Para desarrolladores
 

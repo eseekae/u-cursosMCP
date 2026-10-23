@@ -12,9 +12,10 @@ from __future__ import annotations
 import functools
 import json
 import os
+import re
 from datetime import date, datetime
 from pathlib import Path
-from urllib.parse import urlparse
+from urllib.parse import parse_qs, urlparse
 
 import httpx
 from mcp.server.mcpserver import MCPServer
@@ -45,6 +46,11 @@ Dónde está cada cosa:
 - leer_material: el texto de un archivo de esa lista o de un adjunto de tarea. Úsalo para
   estudiar, resumir o responder preguntas sobre el contenido del ramo.
 - notas: notas publicadas del curso.
+- presentacion_curso: presentación del ramo (programa, equipo docente, horario, evaluación) y la
+  lista de secciones que tiene el curso en U-Cursos.
+- leer_seccion: cualquier otra sección del curso (calendario, foro, clases, enlaces,
+  material_alumnos, asistencias2, ...). Con `ruta` abre un item (un tema del foro, un evento).
+- horario: horario semanal del usuario con todos sus cursos.
 
 Cómo responder según lo que pidan:
 - "¿Qué entra en el control/examen?": novedades primero (suele anunciarse ahí) y luego
@@ -56,6 +62,9 @@ Cómo responder según lo que pidan:
 - "¿Qué tengo esta semana?": tareas con desde/hasta de esta semana (la respuesta trae `hoy`)
   y novedades de los cursos que correspondan.
 - "¿De qué se trata la tarea 3?": tareas para obtener su id y luego detalle_tarea.
+- "¿Cómo se evalúa el ramo?", "¿quién es el profe?": presentacion_curso.
+- "¿Cuándo es el control?": novedades y leer_seccion con seccion="calendario".
+- "¿Qué dijeron en el foro?": leer_seccion con seccion="foro", y `ruta` para abrir un tema.
 
 Reglas:
 - Si algo no está en U-Cursos, dilo. No inventes fechas, notas ni contenidos.
@@ -540,6 +549,112 @@ def novedades(curso_path: str, limite: int = 10) -> list[dict]:
     path = curso_inscrito(curso_path)
     html = servicio(path, "novedades")
     return [n.model_dump() for n in parsers.parse_novedades(html, limite, f"/{path}/novedades/")]
+
+
+# Secciones que leer_seccion no abre: correo y encuestas son mensajes y formularios, e integrantes
+# trae nombres y correos de todo el curso (el equipo docente sale en presentacion_curso).
+SECCIONES_EXCLUIDAS = frozenset({"correo", "encuestas", "integrantes"})
+SECCION_RE = re.compile(r"^[a-z0-9_]+$")
+# Links que no se siguen aunque sean GET: acciones (borrar, responder, entregar, ...) y endpoints
+# internos. Se compara con el inicio de cada segmento de la ruta y de cada clave de la query.
+ACCION_RE = re.compile(
+    r"accion|_ajax|csrf|token|borrar|eliminar|editar|nuevo|crear|responder|enviar|entregar|subir|salir|logout", re.I
+)
+
+
+def _es_accion(resto: str) -> bool:
+    u = urlparse(resto)
+    partes = [*u.path.split("/"), *parse_qs(u.query, keep_blank_values=True)]
+    return any(ACCION_RE.match(p) for p in partes)
+
+
+def ruta_seccion(path: str, seccion: str, ruta: str | None = None) -> tuple[str, str]:
+    """(sección, ruta a pedir) para leer_seccion. Solo páginas del curso, sin acciones ni descargas."""
+    nombre = seccion.strip().strip("/").lower()
+    if not SECCION_RE.match(nombre):
+        raise ToolError(f"'{seccion}' no es un nombre de sección (ej. calendario, foro). presentacion_curso lista las del curso.")
+    destino = f"/{path}/{nombre}/" if ruta is None else ruta_en_curso(path, ruta.strip(), nombre)
+    resto = destino[len(path) + 2 :]
+    nombre = re.split(r"[/?]", resto, maxsplit=1)[0]
+    if not SECCION_RE.match(nombre):
+        raise ToolError("Esa ruta es la portada del curso: usa presentacion_curso.")
+    if nombre in SECCIONES_EXCLUIDAS:
+        raise ToolError(f"La sección '{nombre}' no está disponible en este MCP (correo, encuestas e integrantes quedan fuera).")
+    if _es_accion(resto):
+        raise ToolError("Ese link ejecuta una acción en U-Cursos y este MCP es de solo lectura.")
+    if parsers.es_descarga(destino):
+        raise ToolError("Ese link es un archivo: léelo con leer_material.")
+    return nombre, destino
+
+
+def _contenido(c, desde: int, limite: int) -> dict:
+    """Contenido como dict, con los items por partes."""
+    desde, limite = max(0, desde), max(1, limite)
+    items = c.items[desde : desde + limite]
+    fin = desde + len(items)
+    return {
+        **c.model_dump(exclude={"items"}),
+        "items": [i.model_dump() for i in items],
+        "total_items": len(c.items),
+        "desde": desde,
+        "siguiente_desde": fin if fin < len(c.items) else None,
+    }
+
+
+@mcp.tool(annotations=SOLO_LECTURA)
+@errores_legibles
+def presentacion_curso(curso_path: str) -> dict:
+    """Presentación del ramo: programa, equipo docente, horario de cátedras y auxiliares,
+    evaluación y demás datos del curso.
+
+    También trae `secciones`: las secciones que tiene el curso en U-Cursos, para leer_seccion.
+    Si el programa es un archivo, aparece en `archivos` (léelo con leer_material); si es un link
+    externo, en `enlaces`.
+    """
+    path = curso_inscrito(curso_path)
+    curso = cursos_inscritos()[path]
+    portada = client().get_html(f"/{path}/")
+    secciones = [s for s in parsers.parse_servicios(portada, path) if s not in SECCIONES_EXCLUIDAS]
+    if "datos_curso" in secciones:
+        fuente, base = "datos_curso", f"/{path}/datos_curso/"
+        html = servicio(path, "datos_curso")
+    else:
+        fuente, base, html = "portada", f"/{path}/", portada
+    c = parsers.parse_contenido(html, base, curso.anio, path)
+    return {
+        "curso": curso.model_dump(),
+        "fuente": fuente,
+        "secciones": secciones,
+        **_contenido(c, 0, 20),
+        "aviso": AVISO_CONTENIDO,
+    }
+
+
+@mcp.tool(annotations=SOLO_LECTURA)
+@errores_legibles
+def leer_seccion(curso_path: str, seccion: str, ruta: str | None = None, desde: int = 0, limite: int = 20) -> dict:
+    """Lee una sección del curso que no tiene tool propia: calendario, foro, clases, enlaces,
+    material_alumnos, asistencias2, historial, datos_curso, ...
+
+    `seccion` es el nombre de la URL (presentacion_curso entrega las que tiene el curso). Devuelve
+    `items` (temas del foro, eventos, clases), `tablas`, `campos`, `texto`, `archivos` (su
+    `descarga` va a leer_material) y `enlaces`. Para abrir un item o un enlace interno (un tema
+    del foro, la página 2), pásalo en `ruta`. Los items vienen por partes: si `siguiente_desde` no
+    es None, vuelve a llamar con `desde`. No abre correo, encuestas ni integrantes.
+    """
+    path = curso_inscrito(curso_path)
+    nombre, destino = ruta_seccion(path, seccion, ruta)
+    html = servicio(path, nombre) if ruta is None else client().get_html(destino)
+    c = parsers.parse_contenido(html, destino, cursos_inscritos()[path].anio, path)
+    return {"curso_path": path, "seccion": nombre, **_contenido(c, desde, limite), "aviso": AVISO_CONTENIDO}
+
+
+@mcp.tool(annotations=SOLO_LECTURA)
+@errores_legibles
+def horario() -> dict:
+    """Horario semanal del usuario (cátedras, auxiliares y laboratorios de sus cursos), tal como lo muestra U-Cursos."""
+    c = parsers.parse_contenido(client().horario(), f"/usuario/{client().user_id}/horario/")
+    return {**c.model_dump(), "url": "horario"}  # sin el identificador del usuario
 
 
 @mcp.tool(annotations=ESCRIBE_LOCAL)

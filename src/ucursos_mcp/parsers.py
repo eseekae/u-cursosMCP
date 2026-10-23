@@ -11,6 +11,7 @@ Selectores basados en el reconocimiento del 19/10/2026:
   - Material:      .../material_docente/          -> table#materiales (Descargar, N°, Título, Por)
   - Notas:         .../notas/                     -> tabla con encabezado "Evaluación"
   - Novedades:     .../novedades/                 -> div.post.objeto
+  - Otras secciones (datos_curso, calendario, foro, clases, horario, ...): parse_contenido, genérico.
 Los marcados con TODO son suposiciones razonables que hay que validar con HTML real.
 
 Todo el texto que sale de aquí (enunciados, comentarios, novedades) lo escribió alguien del
@@ -27,7 +28,20 @@ from zoneinfo import ZoneInfo
 
 from bs4 import BeautifulSoup, Tag
 
-from .models import Archivo, Curso, CursoRef, DetalleTarea, Material, Novedad, TablaNotas, Tarea
+from .models import (
+    Archivo,
+    Contenido,
+    Curso,
+    CursoRef,
+    DetalleTarea,
+    Enlace,
+    Item,
+    Material,
+    Novedad,
+    Tabla,
+    TablaNotas,
+    Tarea,
+)
 
 SANTIAGO = ZoneInfo("America/Santiago")
 
@@ -315,7 +329,8 @@ def _pares(soup: BeautifulSoup | Tag) -> dict[str, str]:
         agrega(_txt(dt), _parrafos(dt.find_next_sibling("dd")))
     for tr in soup.find_all("tr"):
         celdas = tr.find_all(["th", "td"], recursive=False)
-        if len(celdas) == 2 and (celdas[0].name == "th" or _txt(celdas[0]).endswith(":")):
+        # El valor es td: una fila th + th es el encabezado de una tabla, no un par.
+        if len(celdas) == 2 and celdas[1].name == "td" and (celdas[0].name == "th" or _txt(celdas[0]).endswith(":")):
             agrega(_txt(celdas[0]), _parrafos(celdas[1]))
     for et in soup.find_all(["strong", "b", "label"]):
         texto = _txt(et)
@@ -474,3 +489,143 @@ def parse_novedades(html: str, limite: int = 10, base: str = "/") -> list[Noveda
             )
         )
     return out
+
+
+# ---------------------------------------------------------------- secciones genéricas
+
+MAX_TEXTO_ITEM = 4_000
+MAX_TEXTO_PAGINA = 15_000
+MAX_FILAS = 200
+MAX_ENLACES = 40
+# TODO validar con HTML real: dónde está el contenido (sin la barra lateral ni el menú).
+CONTENEDORES = ("#body", "#contenido", "#content", "main", "div#cuerpo")
+BASURA = ["script", "style", "noscript", "nav", "iframe", "textarea", "select", "input", "button"]
+EXTENSION_RE = re.compile(
+    r"\.(?:pdf|docx?|pptx?|xlsx?|odt|zip|rar|7z|tar|gz|txt|md|csv|py|ipynb|java|c|cpp|h|m|r|jl|tex|png|jpe?g)$", re.I
+)
+
+
+def es_descarga(ruta: str) -> bool:
+    """True si el link baja un archivo (no es una página). Más estricto que ARCHIVO_RE: la
+    sección `archivos` de una comunidad es una página, no una descarga."""
+    u = urlparse(ruta)
+    return bool(re.search(r"bajar|descargar|download", f"{u.path}?{u.query}", re.I) or EXTENSION_RE.search(u.path))
+
+
+def _enlace_util(href: str, base: str, curso: str | None) -> str | None:
+    """Ruta (interna) o URL (externa) de un link que vale la pena mostrar; None si es navegación.
+
+    Con `curso` solo quedan los links internos de ese curso; sin él, los de cualquier curso.
+    """
+    if href.startswith(("#", "javascript:", "mailto:", "tel:")) or "/usuario/" in href:
+        return None
+    if not _es_u_cursos(href):
+        return href if href.startswith(("http://", "https://")) else None
+    ruta = _ruta(base, href)
+    if curso is not None:
+        return ruta if ruta.startswith(f"/{curso}/") else None
+    return ruta if CURSO_PREFIJO_RE.match(ruta) else None
+
+
+def _item(el: Tag, base: str, anio: int | None, curso: str | None) -> Item:
+    texto = _parrafos(el)
+    url = link_url = None
+    enlaces: dict[str, None] = {}
+    for a in el.find_all("a", href=True):
+        u = _enlace_util(a["href"], base, curso)
+        if u is None or es_descarga(u):
+            continue
+        if url is None and u.startswith("/"):
+            url, link_url = u, a
+        else:
+            enlaces.setdefault(u)
+    titulo_el = el.find(["h1", "h2", "h3", "h4"]) or link_url
+    autor = el.find("a", href=re.compile(r"/usuario/"))
+    fecha_el = el.find("time") or el.find(class_=re.compile(r"fecha|date|hora"))
+    fecha = fecha_iso(fecha_el.get("datetime") or _txt(fecha_el), anio) if fecha_el else None
+    return Item(
+        titulo=_txt(titulo_el) or texto.split("\n", 1)[0][:120],
+        autor=_txt(autor),
+        fecha=fecha or fecha_iso(_txt(el), anio),
+        texto=texto[:MAX_TEXTO_ITEM],
+        url=url,
+        enlaces=list(enlaces),
+    )
+
+
+def _celdas(tabla: Tag) -> list[list[Tag]]:
+    """Celdas de cada fila de la tabla (sin las de tablas anidadas)."""
+    return [tr.find_all(["th", "td"], recursive=False) for tr in tabla.find_all("tr") if tr.find_parent("table") is tabla]
+
+
+def _es_de_pares(tabla: Tag) -> bool:
+    """Tabla de pares etiqueta/valor (th + td en cada fila): esos van a `campos`."""
+    celdas = _celdas(tabla)
+    return bool(celdas) and all(len(c) == 2 and c[0].name == "th" for c in celdas)
+
+
+def _tabla_generica(tabla: Tag) -> Tabla | None:
+    """Tabla con encabezados (columnas) y filas. None si no tiene datos o si es de pares etiqueta/valor."""
+    celdas = _celdas(tabla)
+    if not celdas or _es_de_pares(tabla):
+        return None
+    encabezado = next((c for c in celdas if c and all(x.name == "th" for x in c)), None)
+    datos = [[_txt(x) for x in c] for c in celdas if c is not encabezado and any(_txt(x) for x in c)]
+    if not datos:
+        return None
+    return Tabla(columnas=[_txt(x) for x in encabezado] if encabezado else [], filas=datos[:MAX_FILAS])
+
+
+def parse_contenido(html: str, base: str, anio: int | None = None, curso: str | None = None) -> Contenido:
+    """Cualquier página de U-Cursos -> contenido ordenado, sin conocer el diseño de cada sección.
+
+    Sirve para las secciones sin parser propio (datos_curso, calendario, foro, clases, enlaces,
+    horario, ...): los objetos (`.objeto`, como los posts de novedades) van a `items`, las tablas
+    a `tablas`, los pares "Etiqueta: valor" a `campos`, los archivos a `archivos` y lo que queda a
+    `texto`. `curso` deja solo los links de ese curso (los demás no se pueden abrir).
+    TODO validar con HTML real de cada sección; si alguna se usa mucho, darle un parser propio.
+    """
+    soup = _soup(html)
+    for basura in soup.find_all(BASURA):
+        basura.decompose()
+    cuerpo = next((el for sel in CONTENEDORES if (el := soup.select_one(sel)) is not None), None) or soup.body or soup
+
+    archivos: dict[str, Archivo] = {}
+    for a in cuerpo.find_all("a", href=True):
+        u = _enlace_util(a["href"], base, curso)
+        if u is not None and u.startswith("/") and es_descarga(u):
+            nombre = _txt(a) or urlparse(u).path.rstrip("/").rsplit("/", 1)[-1]
+            archivos.setdefault(u, Archivo(nombre=nombre, descarga=u))
+
+    # Objetos de primer nivel (un tr.objeto se queda en su tabla).
+    objetos = [e for e in cuerpo.select(".objeto") if e.name != "tr" and e.find_parent(class_="objeto") is None]
+    items = [_item(e, base, anio, curso) for e in objetos]
+    for e in objetos:
+        e.extract()
+
+    titulo_el = cuerpo.find(["h1", "h2"]) or soup.find("title")
+    campos = _pares(cuerpo)
+    enlaces: dict[str, Enlace] = {}
+    for a in cuerpo.find_all("a", href=True):
+        u = _enlace_util(a["href"], base, curso)
+        if u is not None and not es_descarga(u) and len(enlaces) < MAX_ENLACES:
+            enlaces.setdefault(u, Enlace(texto=_txt(a)[:120], url=u))
+
+    tablas: list[Tabla] = []
+    for t in [t for t in cuerpo.find_all("table") if t.find_parent("table") is None]:
+        tabla = _tabla_generica(t)
+        if tabla is not None:
+            tablas.append(tabla)
+        if tabla is not None or _es_de_pares(t):
+            t.extract()  # ya quedó en `tablas` o en `campos`; no se repite en `texto`
+
+    return Contenido(
+        titulo=_txt(titulo_el),
+        url=base,
+        campos=campos,
+        items=items,
+        tablas=tablas,
+        texto=_parrafos(cuerpo)[:MAX_TEXTO_PAGINA],
+        archivos=list(archivos.values()),
+        enlaces=list(enlaces.values()),
+    )

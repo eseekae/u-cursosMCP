@@ -199,6 +199,58 @@ def test_html_vacio_no_explota():
     for fn in (parsers.parse_cursos, parsers.parse_tareas_usuario, parsers.parse_tareas, parsers.parse_material,
                parsers.parse_notas, parsers.parse_novedades):
         assert fn("<html></html>") == []
+    c = parsers.parse_contenido("<html></html>", "/x/")
+    assert (c.items, c.tablas, c.campos, c.texto, c.archivos, c.enlaces) == ([], [], {}, "", [], [])
+
+
+CURSO = "ingenieria/2026/2/MA2001/3"
+FORO = """<html><body>
+<div id="menu"><a href="/ingenieria/2026/2/CC1002/7/">Otro ramo CC1002-7</a></div>
+<div id="body"><h1>Foro</h1><script>alert(1)</script>
+<div class="objeto"><h3><a href="o/31">Duda control 2</a></h3><a href="/usuario/abc/">Persona 1</a>
+<span class="fecha">20/10/2026 18:30</span><p>¿Entra la clase 14?</p><a href="https://drive.google.com/x">apunte</a>
+<div class="objeto"><p>Respuesta anidada</p></div></div>
+<div class="objeto"><a href="o/32">Horario de consultas</a><p>Los jueves.</p></div>
+<p>Reglas del foro: sean amables.</p>
+<table><tr><th>Profesor</th><td>Persona 2</td></tr></table>
+<table><thead><tr><th>Fecha</th><th>Evento</th></tr></thead><tbody>
+<tr><td>28/10</td><td>Control 2</td></tr></tbody></table>
+<a href="../material_docente/bajar?id=5">Pauta C1.pdf</a> <a href="?pagina=2">Siguiente</a>
+<a href="https://www.u-cursos.cl/ingenieria/2026/2/FI1000/1/foro/">foro de otro ramo</a>
+<input value="no"><button>Responder</button>
+</div></body></html>"""
+
+
+def test_contenido_generico():
+    c = parsers.parse_contenido(FORO, f"/{CURSO}/foro/", 2026, CURSO)
+    assert c.titulo == "Foro"
+    assert [(i.titulo, i.url) for i in c.items] == [
+        ("Duda control 2", f"/{CURSO}/foro/o/31"), ("Horario de consultas", f"/{CURSO}/foro/o/32"),
+    ]
+    duda = c.items[0]
+    assert (duda.autor, duda.fecha, duda.enlaces) == ("Persona 1", "2026-10-20T18:30:00-03:00", ["https://drive.google.com/x"])
+    assert "Respuesta anidada" in duda.texto  # el objeto anidado queda dentro de su padre
+    assert c.campos == {"Profesor": "Persona 2"}
+    assert c.tablas[0].model_dump() == {"columnas": ["Fecha", "Evento"], "filas": [["28/10", "Control 2"]]}
+    assert [(a.nombre, a.descarga) for a in c.archivos] == [("Pauta C1.pdf", f"/{CURSO}/material_docente/bajar?id=5")]
+    assert [e.url for e in c.enlaces] == [f"/{CURSO}/foro/?pagina=2"]  # ni otros cursos ni el menú
+    assert "Reglas del foro" in c.texto
+    for fuera in ("alert", "Responder", "Persona 2", "Control 2", "Duda control"):
+        assert fuera not in c.texto
+
+
+def test_contenido_sin_curso_deja_links_de_cursos():
+    c = parsers.parse_contenido(FORO, "/usuario/abc/horario/")
+    assert "/ingenieria/2026/2/FI1000/1/foro/" in [e.url for e in c.enlaces]
+    assert "/usuario/abc/" not in [e.url for e in c.enlaces]
+
+
+@pytest.mark.parametrize("ruta, esperado", [
+    ("/c/material_docente/bajar?id=1", True), ("/c/archivos/guia.pdf", True),
+    ("/comunidades/2026/0/X/1/archivos/", False), ("/c/foro/o/3", False),
+])
+def test_es_descarga(ruta, esperado):
+    assert parsers.es_descarga(ruta) is esperado
 
 
 # ---------------------------------------------------------------- fixtures reales
@@ -211,6 +263,10 @@ REALES = {
     "material_docente": parsers.parse_material,
     "notas": parsers.parse_notas,
     "novedades": parsers.parse_novedades,
+    **{
+        nombre: lambda html: (c := parsers.parse_contenido(html, "/")).items or c.tablas or c.campos or c.texto
+        for nombre in ("datos_curso", "calendario", "foro", "clases", "enlaces", "horario")
+    },
 }
 
 

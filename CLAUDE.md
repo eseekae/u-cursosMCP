@@ -7,7 +7,7 @@ Proyecto open source hecho por estudiantes de la FCFM. Responder en español chi
 ## Reglas (no negociables)
 
 - **Solo lectura.** Nunca agregar tools que entreguen tareas, publiquen en foros, manden correos o modifiquen nada en U-Cursos.
-- **Solo cursos inscritos.** Toda tool que reciba `curso_path` pasa por `curso_inscrito()` (server.py), y las descargas por `ruta_descarga()`. No agregar acceso a secciones o semestres donde el usuario no está inscrito.
+- **Solo cursos inscritos.** Toda tool que reciba `curso_path` pasa por `curso_inscrito()` (server.py), las descargas por `ruta_descarga()` y `leer_seccion` por `ruta_seccion()` (sin correo, encuestas ni integrantes, ni links que ejecutan acciones). No agregar acceso a secciones o semestres donde el usuario no está inscrito.
 - **Nunca leer, imprimir ni commitear la sesión** (`~/.ucursos-mcp/` o el antiguo `.session/`: son las cookies de su cuenta). `settings.json` lo bloquea; no intentar rodearlo.
 - **Nunca automatizar el login** ni pedirle la clave. El usuario inicia sesión él mismo (Cuenta UChile tiene captcha). Hay dos caminos permitidos:
   1. **Ventana de inicio de sesión** (`login_ventana.py`, la habitual): una ventana (pywebview/WebView2) donde el humano hace todo. El código nunca escribe credenciales, no toca el captcha ni controla la página: solo lee la URL y, al terminar, las cookies de esa ventana. Sigue prohibido Selenium, Playwright, CDP, parches anti-detección o cualquier cosa que simule ser humano.
@@ -26,7 +26,7 @@ src/ucursos_mcp/
   auth.py     guarda la sesión (con su origen) -> ~/.ucursos-mcp/ucursos.storage_state.json; plan B: lee cookies por perfil, valida cada uno y, si ninguno sirve, diagnóstico en login.log
   login_ventana.py  ventana de inicio de sesión (pywebview). Corre en un proceso aparte (`ucursos-mcp ventana-login`); el server la lanza, espera por tramos y lee su código de salida
   client.py   httpx con esas cookies; decodifica ISO-8859-1; lanza SessionExpired; validar_cookies()
-  parsers.py  HTML -> modelos. ÚNICA capa que conoce el HTML de U-Cursos
+  parsers.py  HTML -> modelos. ÚNICA capa que conoce el HTML de U-Cursos. parse_contenido es el lector genérico de las secciones sin parser propio
   documentos.py  archivo descargado -> texto (pypdf, python-docx, python-pptx). No sabe de U-Cursos
   models.py   DTOs pydantic
   launcher.py   entrada: sin args y stdin pipe = server; ejecutable con doble clic = instalar (u actualizar) y ofrecer iniciar sesión; install/uninstall/login/version/ventana-login
@@ -40,7 +40,7 @@ PRUEBAS.md                 pruebas manuales en Claude Desktop; actualizarla al a
 scripts/capturar_html.py   baja una página con la sesión y la guarda anonimizada en tests/fixtures/
 tests/test_parsers.py      tests sintéticos + tests sobre fixtures reales si existen
 tests/test_documentos.py   extracción de texto con archivos armados en memoria
-tests/test_server.py       errores legibles, cursos inscritos, rutas de descarga, paginación, tareas, detalle_tarea
+tests/test_server.py       errores legibles, cursos inscritos, rutas de descarga, paginación, tareas, detalle_tarea, leer_seccion
 tests/test_auth.py         login por navegador: perfiles falsos, WAL de Firefox/Zen, diagnóstico
 tests/test_login_ventana.py  ventana con pywebview falso, y iniciar_sesion/estado_sesion del server
 tests/test_instalador.py  configs de las apps en carpetas temporales, modo doble clic
@@ -103,8 +103,8 @@ Skill externa opcional: `scrapling` (disponible en claude.ai) sirve si algún d�
 
 ## Pendiente
 
-1. Validar los `TODO` de `parsers.py` con fixtures reales (skill `arreglar-parser`): tabla de `<curso>/tareas/`, página de una tarea (`detalle_tarea`: etiquetas, adjuntos vs. entregados) y novedades. Capturar `tareas` y `detalle_tarea` como fixtures.
-2. Tools nuevas: calendario (plazos de tareas, controles y evaluaciones en una vista), foro (lectura), horario, archivos de comunidades (falta saber el nombre del servicio; el error 403 ya lista las secciones disponibles): skill `nueva-tool`.
+1. Validar los `TODO` de `parsers.py` con fixtures reales (skill `arreglar-parser`): tabla de `<curso>/tareas/`, página de una tarea (`detalle_tarea`: etiquetas, adjuntos vs. entregados), novedades y el lector genérico `parse_contenido` (contenedor principal, `.objeto` como items). Capturar `tareas`, `detalle_tarea`, `datos_curso`, `calendario`, `foro`, `clases`, `enlaces` y `horario` como fixtures.
+2. `presentacion_curso`, `leer_seccion` y `horario` usan el lector genérico. Con los fixtures, darles parser propio a las que más se usen: calendario (plazos de tareas, controles y evaluaciones en una vista, con fechas ISO) y foro. Anotar el nombre de la sección de archivos de comunidades.
 3. Detectar expiración de sesión también por redirección a la portada (ya se detecta la redirección a Cuenta UChile).
 4. Evaluaciones de calidad de las tools con `mcp-builder/reference/evaluation.md`.
 5. Confirmar en Windows real la detección del navegador por defecto (ProgId de Zen) y las rutas de ejecutables (ahora solo plan B).

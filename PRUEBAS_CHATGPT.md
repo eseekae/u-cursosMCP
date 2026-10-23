@@ -1,15 +1,15 @@
-# Pruebas en ChatGPT de escritorio (v0.8.0)
+# Pruebas en ChatGPT de escritorio (v0.9.0)
 
 Checklist corto para Windows. Usa un chat nuevo en cada prueba y anota lo que pase.
 No pegues capturas con nombres, RUT ni notas de otras personas.
 
 ## 0. Antes de empezar
-- Descarga `ucursos-mcp-windows.exe` del release v0.8.0 (o del artefacto de la CI).
+- Descarga `ucursos-mcp-windows.exe` del release v0.9.0 (o del artefacto de la CI).
 - Para probar el login desde cero, borra la carpeta `%USERPROFILE%\.ucursos-mcp`.
 
 ## 1. Instalar o actualizar
 - **Haz:** doble clic en el `.exe`, marca ChatGPT y Codex, pulsa Instalar.
-- **Esperado:** la consola dice `Programa: instalado` (o `actualizado de la versión X a la 0.8.0` si ya tenías uno) y `ChatGPT de escritorio / Codex: [OK]`.
+- **Esperado:** la consola dice `Programa: instalado` (o `actualizado de la versión X a la 0.9.0` si ya tenías uno) y `ChatGPT de escritorio / Codex: [OK]`.
 - **Actualizando con ChatGPT abierto:** no debe salir error de "archivo en uso".
 - **Anota:** si SmartScreen o el antivirus lo bloquearon.
 
@@ -20,7 +20,7 @@ No pegues capturas con nombres, RUT ni notas de otras personas.
 
 ## 3. Aparece en ChatGPT
 - **Haz:** cierra ChatGPT del todo y ábrelo de nuevo. Mira Settings y la sección de MCP o plugins.
-- **Esperado:** aparece `ucursos` con sus 10 tools.
+- **Esperado:** aparece `ucursos` con sus 13 tools.
 - **Anota:** cómo se llama el menú en tu versión y si la lista de tools sale completa.
 
 ## 4. Primera consulta

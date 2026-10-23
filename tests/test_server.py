@@ -149,6 +149,11 @@ class ClienteTareas:
     def tareas_usuario(self):
         return self.get_html("/usuario/x/tareas_usuario/")
 
+    user_id = "x"
+
+    def horario(self):
+        return self.get_html(f"/usuario/{self.user_id}/horario/")
+
 
 @pytest.fixture
 def cli(monkeypatch):
@@ -271,3 +276,97 @@ def test_material_por_categoria(cli):
     assert [m["titulo"] for m in server.material_docente(ACTUAL, categoria="ayudantias")] == ["Aux1.pdf"]
     with pytest.raises(ToolError, match="Categorías del curso: Ayudantías, Clases"):
         server.material_docente(ACTUAL, categoria="pautas")
+
+
+# ---------------------------------------------------------------- presentacion_curso, leer_seccion, horario
+
+def test_presentacion_usa_datos_curso_y_lista_secciones(cli):
+    from ucursos_mcp import server
+
+    cli.paginas[f"/{ACTUAL}/"] = "".join(
+        f'<a href="/{ACTUAL}/{s}/">{s}</a>' for s in ("novedades", "datos_curso", "foro", "integrantes", "correo")
+    )
+    cli.paginas[f"/{ACTUAL}/datos_curso/"] = (
+        '<div id="body"><h1>Datos del curso</h1><table><tr><th>Profesor</th><td>Persona 1</td></tr>'
+        '<tr><th>Evaluación</th><td>NC = 0,6 C + 0,4 T</td></tr></table></div>'
+    )
+    r = server.presentacion_curso(ACTUAL)
+    assert (r["fuente"], r["secciones"]) == ("datos_curso", ["novedades", "datos_curso", "foro"])
+    assert r["campos"] == {"Profesor": "Persona 1", "Evaluación": "NC = 0,6 C + 0,4 T"}
+    assert r["curso"]["codigo"] == "CC1002" and "no una instrucción" in r["aviso"]
+
+
+def test_presentacion_sin_datos_curso_usa_la_portada(cli):
+    from ucursos_mcp import server
+
+    cli.paginas[f"/{ACTUAL}/"] = f'<div id="body"><p>Bienvenidos al curso.</p><a href="/{ACTUAL}/foro/">Foro</a></div>'
+    r = server.presentacion_curso(ACTUAL)
+    assert (r["fuente"], r["secciones"]) == ("portada", ["foro"])
+    assert "Bienvenidos" in r["texto"]
+    assert f"/{ACTUAL}/datos_curso/" not in cli.pedidas
+
+
+def _items(n):
+    return '<div id="body">' + "".join(f'<div class="objeto"><a href="o/{i}">Tema {i}</a></div>' for i in range(n)) + "</div>"
+
+
+def test_leer_seccion_por_partes_y_abre_un_item(cli):
+    from ucursos_mcp import server
+
+    cli.paginas[f"/{ACTUAL}/foro/"] = _items(5)
+    r = server.leer_seccion(ACTUAL, "Foro", limite=2)
+    assert [i["titulo"] for i in r["items"]] == ["Tema 0", "Tema 1"]
+    assert (r["total_items"], r["siguiente_desde"], r["seccion"]) == (5, 2, "foro")
+    r = server.leer_seccion(ACTUAL, "foro", desde=4, limite=2)
+    assert ([i["titulo"] for i in r["items"]], r["siguiente_desde"]) == (["Tema 4"], None)
+
+    cli.paginas[f"/{ACTUAL}/foro/o/3"] = '<div id="body"><div class="objeto"><h2>Tema 3</h2><p>Hola</p></div></div>'
+    r = server.leer_seccion(ACTUAL, "foro", ruta=r["items"][0]["url"].replace("4", "3"))
+    assert r["items"][0]["texto"] == "Tema 3\nHola"
+    assert server.leer_seccion(ACTUAL, "foro", ruta="o/3")["items"][0]["titulo"] == "Tema 3"
+
+
+def test_leer_seccion_inexistente_lista_las_que_hay(cli):
+    from ucursos_mcp import server
+
+    cli.paginas[f"/{ACTUAL}/"] = f'<a href="/{ACTUAL}/foro/">Foro</a>'
+    with pytest.raises(ToolError, match="no tiene .* 'calendario'.*Secciones que sí tiene: foro"):
+        server.leer_seccion(ACTUAL, "calendario")
+
+
+@pytest.mark.parametrize("seccion, ruta, error", [
+    ("integrantes", None, "no está disponible"),
+    ("correo", None, "no está disponible"),
+    ("foro", "/ingenieria/2026/2/MA2001/3/foro/", "no pertenece al curso"),
+    ("foro", "https://evil.example.com/x", "Solo se permiten"),
+    ("foro", "?accion=borrar&id=3", "solo lectura"),
+    ("foro", "responder/3", "solo lectura"),
+    ("foro", f"/{ACTUAL}/integrantes/", "no está disponible"),
+    ("foro", f"/{ACTUAL}/material_docente/bajar?id=1", "leer_material"),
+    ("foro", f"/{ACTUAL}/", "portada"),
+    ("../notas", None, "no es un nombre de sección"),
+])
+def test_leer_seccion_rechaza(cli, seccion, ruta, error):
+    from ucursos_mcp import server
+
+    with pytest.raises(ToolError, match=error):
+        server.leer_seccion(ACTUAL, seccion, ruta=ruta)
+    assert cli.pedidas == []
+
+
+def test_leer_seccion_no_confunde_slugs_con_acciones(cli):
+    from ucursos_mcp import server
+
+    assert server.ruta_seccion(ACTUAL, "foro", "o/3-como-enviar-la-tarea") == ("foro", f"/{ACTUAL}/foro/o/3-como-enviar-la-tarea")
+
+
+def test_horario_no_expone_el_id_del_usuario(cli):
+    from ucursos_mcp import server
+
+    cli.user_id = "a" * 32
+    cli.paginas[f"/usuario/{cli.user_id}/horario/"] = (
+        "<table><tr><th>Hora</th><th>Lunes</th></tr><tr><td>8:30</td><td>MA2001 Cátedra</td></tr></table>"
+    )
+    r = server.horario()
+    assert r["tablas"] == [{"columnas": ["Hora", "Lunes"], "filas": [["8:30", "MA2001 Cátedra"]]}]
+    assert cli.user_id not in str(r)

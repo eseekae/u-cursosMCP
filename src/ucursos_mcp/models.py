@@ -74,7 +74,37 @@ class Novedad(BaseModel):
     enlaces: list[str]
 
 
-class TablaNotas(BaseModel):
-    """Las notas varían mucho entre cursos, así que se devuelven como tabla genérica."""
+class Tabla(BaseModel):
     columnas: list[str]
     filas: list[list[str]]
+
+
+class TablaNotas(Tabla):
+    """Las notas varían mucho entre cursos, así que se devuelven como tabla genérica."""
+
+
+class Enlace(BaseModel):
+    texto: str
+    url: str             # ruta dentro del curso (se abre con leer_seccion) o link externo
+
+
+class Item(BaseModel):
+    """Un objeto de una sección: tema del foro, evento del calendario, clase, enlace, ..."""
+    titulo: str
+    autor: str
+    fecha: str | None    # ISO 8601 si se encontró una fecha
+    texto: str
+    url: str | None      # ruta del objeto, para abrirlo con leer_seccion(ruta=...)
+    enlaces: list[str]
+
+
+class Contenido(BaseModel):
+    """Página de cualquier sección, ordenada sin conocer su diseño (ver parsers.parse_contenido)."""
+    titulo: str
+    url: str
+    campos: dict[str, str]   # pares "etiqueta: valor" (Profesor, Horario, ...)
+    items: list[Item]
+    tablas: list[Tabla]
+    texto: str               # el resto del texto de la página
+    archivos: list[Archivo]  # su `descarga` va a leer_material o descargar_material
+    enlaces: list[Enlace]
