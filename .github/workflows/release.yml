@@ -1,12 +1,13 @@
 # Arma la extensión de Claude Desktop (.mcpb) y el ejecutable único (Windows y Linux) y los adjunta al release.
-# Para publicar una versión: sube la versión en manifest.json y pyproject.toml,
-# y crea un tag (ej. v0.2.0) o un release en GitHub.
+# Para publicar una versión: sube la versión en manifest.json y pyproject.toml y mergea a main
+# (el release v<versión> se crea solo). También funciona crear un tag v*.
 # En cada pull request corre los tests y deja el .mcpb como artefacto (sin release),
 # para instalarlo y probarlo con PRUEBAS.md antes de mergear.
 name: Release extensión
 
 on:
   push:
+    branches: [main]
     tags: ["v*"]
   pull_request:
   workflow_dispatch:
@@ -48,12 +49,6 @@ jobs:
           name: ${{ matrix.nombre }}
           path: ${{ matrix.nombre }}
 
-      - name: Adjuntar al release
-        if: startsWith(github.ref, 'refs/tags/')
-        uses: softprops/action-gh-release@v2
-        with:
-          files: ${{ matrix.nombre }}
-
   mcpb:
     runs-on: ubuntu-latest
     steps:
@@ -81,8 +76,46 @@ jobs:
           name: ucursos-mcpb
           path: ucursos.mcpb
 
-      - name: Adjuntar al release
-        if: startsWith(github.ref, 'refs/tags/')
+  publicar:
+    # Publica el release una sola vez, con todos los archivos. Corre al mergear a main con una
+    # versión que aún no tiene release (v<versión> de pyproject.toml) o al crear un tag v*.
+    # Para publicar: sube la versión en manifest.json y pyproject.toml y mergea a main.
+    needs: [ejecutable, mcpb]
+    if: github.event_name == 'push'
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Leer versión
+        id: v
+        run: |
+          V=$(grep -m1 '^version' pyproject.toml | cut -d'"' -f2)
+          M=$(grep -m1 '"version"' manifest.json | cut -d'"' -f4)
+          [ "$V" = "$M" ] || { echo "Versiones distintas: pyproject=$V manifest=$M"; exit 1; }
+          echo "version=$V" >> "$GITHUB_OUTPUT"
+
+      - name: ¿Ya existe el release?
+        id: existe
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          if gh release view "v${{ steps.v.outputs.version }}" >/dev/null 2>&1; then
+            echo "existe=true" >> "$GITHUB_OUTPUT"
+          else
+            echo "existe=false" >> "$GITHUB_OUTPUT"
+          fi
+
+      - if: steps.existe.outputs.existe == 'false' || startsWith(github.ref, 'refs/tags/')
+        uses: actions/download-artifact@v4
+        with:
+          path: archivos
+          merge-multiple: true
+
+      - name: Publicar release
+        if: steps.existe.outputs.existe == 'false' || startsWith(github.ref, 'refs/tags/')
         uses: softprops/action-gh-release@v2
         with:
-          files: ucursos.mcpb
+          tag_name: ${{ startsWith(github.ref, 'refs/tags/') && github.ref_name || format('v{0}', steps.v.outputs.version) }}
+          target_commitish: ${{ github.sha }}
+          generate_release_notes: true
+          files: archivos/*

@@ -11,7 +11,7 @@ Si algo falla al arrancar, el log está en Claude Desktop: Configuración → De
 ## 1. Instalación
 
 - **Haz:** Configuración → Extensiones, arrastra `ucursos.mcpb` e instala.
-- **Esperado:** aparece "U-Cursos (solo lectura)" versión 0.6.0 activada, sin error. En un chat, el ícono de herramientas muestra 10 tools (entre ellas `detalle_tarea`).
+- **Esperado:** aparece "U-Cursos (solo lectura)" versión 0.7.0 activada, sin error. En un chat, el ícono de herramientas muestra 10 tools (entre ellas `detalle_tarea`).
 - **Anota:** cuánto tardó la primera vez y si salió algún error.
 
 ## 1b. Instalación con el ejecutable (ChatGPT de escritorio)
