@@ -140,11 +140,14 @@ def ruta_cursor() -> Path:
     return Path.home() / ".cursor" / "mcp.json"
 
 
-def _editar_json(app: str, ruta: Path, cmd: str, args: list[str], quitar: bool) -> Resultado | None:
-    """None si la app no está instalada (no existe su carpeta de config)."""
-    if not ruta.parent.exists():
+def _editar_json(
+    app: str, ruta: Path, cmd: str, args: list[str], quitar: bool, crear: bool = False
+) -> Resultado | None:
+    """None si la app no está instalada (no existe su carpeta de config) y no pedimos `crear`."""
+    if not ruta.parent.exists() and not (crear and not quitar):
         return None
     try:
+        ruta.parent.mkdir(parents=True, exist_ok=True)
         datos = json.loads(ruta.read_text(encoding="utf-8")) if ruta.exists() else {}
         if not isinstance(datos, dict) or not isinstance(datos.get("mcpServers", {}), dict):
             return Resultado(app, False, f"{ruta} tiene un formato que no esperaba")
@@ -162,9 +165,31 @@ def _editar_json(app: str, ruta: Path, cmd: str, args: list[str], quitar: bool) 
 
 # ---------- Orquestación ----------
 
-def instalar(copiar: bool | None = None) -> list[Resultado]:
-    """Registra el server en todas las apps detectadas. Con `copiar` se instala el ejecutable."""
-    resultados: list[Resultado] = []
+@dataclass(frozen=True)
+class Destino:
+    """Una app donde se puede instalar el server."""
+
+    id: str
+    nombre: str
+    ruta: Path
+    formato: str  # "toml" o "json"
+
+    @property
+    def detectado(self) -> bool:
+        # Codex/ChatGPT: la config se crea si falta (no hay forma fiable de detectar la app de la Store)
+        return self.formato == "toml" or self.ruta.parent.exists()
+
+
+def destinos() -> list[Destino]:
+    return [
+        Destino("chatgpt", "ChatGPT de escritorio y Codex", ruta_codex(), "toml"),
+        Destino("claude", "Claude Desktop", ruta_claude_desktop(), "json"),
+        Destino("cursor", "Cursor", ruta_cursor(), "json"),
+    ]
+
+
+def instalar(ids: list[str] | None = None, copiar: bool | None = None) -> list[Resultado]:
+    """Registra el server. `ids` elige los destinos; sin `ids`, todos los detectados."""
     if copiar is None:
         copiar = empaquetado()
     if copiar:
@@ -175,20 +200,28 @@ def instalar(copiar: bool | None = None) -> list[Resultado]:
                               f"no pude copiarlo a {carpeta_instalacion()}: {exc}. "
                               "Cierra ChatGPT/Claude y vuelve a intentar.")]
     cmd, args = comando()
-    resultados.append(instalar_codex(cmd, args))
-    for app, ruta in (("Claude Desktop", ruta_claude_desktop()), ("Cursor", ruta_cursor())):
-        r = _editar_json(app, ruta, cmd, args, quitar=False)
-        if r:
-            resultados.append(r)
+    resultados: list[Resultado] = []
+    for d in destinos():
+        if (d.id not in ids) if ids is not None else (not d.detectado):
+            continue
+        if d.formato == "toml":
+            resultados.append(instalar_codex(cmd, args, d.ruta))
+        else:
+            r = _editar_json(d.nombre, d.ruta, cmd, args, quitar=False, crear=ids is not None)
+            if r:
+                resultados.append(r)
     return resultados
 
 
 def desinstalar() -> list[Resultado]:
-    resultados = [desinstalar_codex()]
-    for app, ruta in (("Claude Desktop", ruta_claude_desktop()), ("Cursor", ruta_cursor())):
-        r = _editar_json(app, ruta, "", [], quitar=True)
-        if r:
-            resultados.append(r)
+    resultados = []
+    for d in destinos():
+        if d.formato == "toml":
+            resultados.append(desinstalar_codex(d.ruta))
+        else:
+            r = _editar_json(d.nombre, d.ruta, "", [], quitar=True)
+            if r:
+                resultados.append(r)
     return resultados
 
 

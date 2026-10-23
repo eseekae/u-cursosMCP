@@ -80,10 +80,33 @@ def test_launcher_sin_args_desde_codigo_fuente_arranca_el_server(monkeypatch):
 
 def test_launcher_doble_clic_instala(monkeypatch, capsys):
     monkeypatch.setattr(instalador, "empaquetado", lambda: True)
-    monkeypatch.setattr(instalador, "instalar", lambda: [instalador.Resultado("X", True, "ok")])
+    monkeypatch.setattr("ucursos_mcp.ventana.elegir", lambda d: ["chatgpt"])
+    monkeypatch.setattr(instalador, "instalar", lambda ids=None: [instalador.Resultado("X", True, "ok")])
     monkeypatch.setattr(launcher, "_pausar", lambda: None)
     monkeypatch.setattr("sys.stdin", type("T", (), {"isatty": lambda self: True})())
     with pytest.raises(SystemExit) as salida:
         launcher.main([])
     assert salida.value.code == 0
     assert "Siguiente paso" in capsys.readouterr().out
+
+
+@pytest.fixture
+def casa(tmp_path, monkeypatch):
+    """HOME falso: ninguna app instalada salvo lo que cada test cree."""
+    for var in ("HOME", "USERPROFILE", "APPDATA", "LOCALAPPDATA", "XDG_CONFIG_HOME", "XDG_DATA_HOME"):
+        monkeypatch.setenv(var, str(tmp_path))
+    monkeypatch.delenv("CODEX_HOME", raising=False)
+    return tmp_path
+
+
+def test_instalar_sin_ids_usa_las_detectadas(casa):
+    (casa / ".cursor").mkdir()
+    r = instalador.instalar(copiar=False)
+    assert {x.app for x in r} == {"ChatGPT de escritorio / Codex", "Cursor"}  # Claude no esta
+
+
+def test_instalar_con_ids_respeta_la_eleccion_y_crea_la_config(casa):
+    r = instalador.instalar(["claude"], copiar=False)
+    assert [x.app for x in r] == ["Claude Desktop"] and r[0].ok
+    assert not (casa / ".codex").exists()
+    assert "ucursos" in json.loads(instalador.ruta_claude_desktop().read_text(encoding="utf-8"))["mcpServers"]

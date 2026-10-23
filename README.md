@@ -7,7 +7,7 @@ No es oficial ni está afiliado a la Universidad. Es open source (MIT): úsalo, 
 ## Instalar en ChatGPT, Claude o Cursor (doble clic, sin terminal)
 
 1. Descarga el archivo de tu sistema desde la última versión en [Releases](https://github.com/eseekae/u-cursosMCP/releases): `ucursos-mcp-windows.exe` o `ucursos-mcp-linux` (Mac, por ahora, con la extensión o el código fuente).
-2. Haz **doble clic**. Se abre una ventana que se instala sola en ChatGPT de escritorio, Claude Desktop y Cursor (las que tengas) y te dice qué hacer después.
+2. Haz **doble clic**. Se abre una ventana donde marcas en qué quieres usarlo (ChatGPT de escritorio y Codex, Claude Desktop, Cursor), pulsas **Instalar** y te dice qué hacer después.
 3. Cierra del todo tu app y ábrela de nuevo. Pídele: *"Revisa mis cursos de U-Cursos"* y entra a U-Cursos en el navegador que se abre.
 
 Qué hace al instalarse: copia el programa a una carpeta fija (`%LOCALAPPDATA%\ucursos-mcp` en Windows, `~/.local/share/ucursos-mcp` en Linux) y agrega una entrada `ucursos` en la config de cada app, dejando un respaldo `.ucursos.bak` del archivo original. Para quitarlo, ejecuta `ucursos-mcp uninstall`.
@@ -81,6 +81,7 @@ documentos.py   archivo -> texto (PDF, .docx, .pptx, texto)
 models.py       DTOs con pydantic
 server.py       Tools MCP (MCPServer del SDK mcp 2.x, transporte stdio)
 launcher.py     Punto de entrada: server MCP (stdio) o, con doble clic en el ejecutable, instalador
+ventana.py      Ventana con casillas (o menú de consola) para elegir dónde instalar
 instalador.py   Registra el server en ChatGPT/Codex (TOML), Claude Desktop y Cursor (JSON), con respaldo
 mcpb_server.py  Punto de entrada de la extensión de Claude Desktop
 ucursos_exe.py  Script que PyInstaller empaqueta en el ejecutable único

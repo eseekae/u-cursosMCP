@@ -15,7 +15,7 @@ from . import instalador
 
 AYUDA = """Uso: ucursos-mcp [install | uninstall | login | version]
   (sin argumentos)  arranca el servidor MCP; con doble clic instala en tus apps
-  install           registra el servidor en ChatGPT de escritorio, Claude Desktop y Cursor
+  install           registra el servidor en las apps detectadas (ChatGPT de escritorio y Codex, Claude Desktop, Cursor)
   uninstall         lo quita de esas apps
   login             abre U-Cursos en tu navegador para importar tu sesión
   version           muestra la versión
@@ -47,7 +47,16 @@ def _pausar() -> None:
 
 
 def _instalar(interactivo: bool) -> int:
-    resultados = instalador.instalar()
+    ids = None
+    if interactivo:
+        from .ventana import elegir
+
+        ids = elegir(instalador.destinos())
+        if not ids:
+            print("No se instaló nada.")
+            _pausar()
+            return 1
+    resultados = instalador.instalar(ids)
     print(instalador.informe(resultados))
     ok = all(r.ok for r in resultados)
     print(SIGUIENTE_PASO if ok else "\nAlgo falló. Revisa los mensajes de arriba.")

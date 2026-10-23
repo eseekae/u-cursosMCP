@@ -26,6 +26,7 @@ src/ucursos_mcp/
   documentos.py  archivo descargado -> texto (pypdf, python-docx, python-pptx). No sabe de U-Cursos
   models.py   DTOs pydantic
   launcher.py   entrada: sin args y stdin pipe = server; ejecutable con doble clic = instalar; install/uninstall/login/version
+  ventana.py    elige dónde instalar (tkinter, o consola si no hay interfaz). No instala
   instalador.py registra el server en ChatGPT/Codex (~/.codex/config.toml), Claude Desktop y Cursor. Solo edita configs ajenas (con .bak), no toca la sesión
   server.py   tools MCP (MCPServer, patrón Facade). Errores esperables -> ToolError (decorador errores_legibles)
 ucursos_exe.py             entrada que empaqueta PyInstaller (ejecutable único; el workflow lo arma para Windows y Linux)
