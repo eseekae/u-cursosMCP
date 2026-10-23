@@ -1,4 +1,4 @@
-# Arma la extensión de Claude Desktop (.mcpb) y la adjunta al release.
+# Arma la extensión de Claude Desktop (.mcpb) y el ejecutable único (Windows y Linux) y los adjunta al release.
 # Para publicar una versión: sube la versión en manifest.json y pyproject.toml,
 # y crea un tag (ej. v0.2.0) o un release en GitHub.
 # En cada pull request corre los tests y deja el .mcpb como artefacto (sin release),
@@ -15,6 +15,45 @@ permissions:
   contents: write
 
 jobs:
+  ejecutable:
+    # Ejecutable único: doble clic lo instala en ChatGPT de escritorio, Claude Desktop y Cursor.
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - {os: windows-latest, nombre: ucursos-mcp-windows.exe, origen: dist/ucursos-mcp.exe}
+          - {os: ubuntu-latest, nombre: ucursos-mcp-linux, origen: dist/ucursos-mcp}
+    runs-on: ${{ matrix.os }}
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: astral-sh/setup-uv@v6
+
+      - name: Armar ejecutable
+        shell: bash
+        run: |
+          uv venv
+          uv pip install -e . pyinstaller
+          uv run pyinstaller --onefile --name ucursos-mcp --paths src \
+            --collect-submodules browser_cookie3 --collect-all mcp --collect-data tzdata \
+            --copy-metadata ucursos-mcp ucursos_exe.py
+          cp "${{ matrix.origen }}" "${{ matrix.nombre }}"
+
+      - name: Probar que arranca
+        shell: bash
+        run: ./"${{ matrix.nombre }}" version
+
+      - uses: actions/upload-artifact@v4
+        with:
+          name: ${{ matrix.nombre }}
+          path: ${{ matrix.nombre }}
+
+      - name: Adjuntar al release
+        if: startsWith(github.ref, 'refs/tags/')
+        uses: softprops/action-gh-release@v2
+        with:
+          files: ${{ matrix.nombre }}
+
   mcpb:
     runs-on: ubuntu-latest
     steps:
