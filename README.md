@@ -6,15 +6,14 @@ No es oficial ni está afiliado a la Universidad. Es open source (MIT): úsalo, 
 
 ## Instalar en ChatGPT, Claude o Cursor (doble clic, sin terminal)
 
-1. Descarga el archivo de tu sistema desde la última versión en [Releases](https://github.com/eseekae/u-cursosMCP/releases): `ucursos-mcp-windows.exe`, `ucursos-mcp-mac` o `ucursos-mcp-linux`.
+1. Descarga el archivo de tu sistema desde la última versión en [Releases](https://github.com/eseekae/u-cursosMCP/releases): `ucursos-mcp-windows.exe` o `ucursos-mcp-linux` (Mac, por ahora, con la extensión o el código fuente).
 2. Haz **doble clic**. Se abre una ventana que se instala sola en ChatGPT de escritorio, Claude Desktop y Cursor (las que tengas) y te dice qué hacer después.
 3. Cierra del todo tu app y ábrela de nuevo. Pídele: *"Revisa mis cursos de U-Cursos"* y entra a U-Cursos en el navegador que se abre.
 
-Qué hace al instalarse: copia el programa a una carpeta fija (`%LOCALAPPDATA%\ucursos-mcp` en Windows, `~/Library/Application Support/ucursos-mcp` en Mac, `~/.local/share/ucursos-mcp` en Linux) y agrega una entrada `ucursos` en la config de cada app, dejando un respaldo `.ucursos.bak` del archivo original. Para quitarlo, ejecuta `ucursos-mcp uninstall`.
+Qué hace al instalarse: copia el programa a una carpeta fija (`%LOCALAPPDATA%\ucursos-mcp` en Windows, `~/.local/share/ucursos-mcp` en Linux) y agrega una entrada `ucursos` en la config de cada app, dejando un respaldo `.ucursos.bak` del archivo original. Para quitarlo, ejecuta `ucursos-mcp uninstall`.
 
 Avisos normales por ser un programa sin firma digital:
 - **Windows:** SmartScreen dice "Windows protegió su PC". Pulsa **Más información → Ejecutar de todas formas**.
-- **Mac:** "no se puede abrir". Clic derecho sobre el archivo → **Abrir** (y en Mac hay que darle permiso de ejecución una vez: `chmod +x`).
 - Si prefieres no ejecutar binarios, usa la extensión de Claude Desktop o corre el código fuente (ver abajo).
 
 ## Instalar en Claude Desktop (extensión .mcpb)

@@ -1,4 +1,4 @@
-# Arma la extensión de Claude Desktop (.mcpb) y el ejecutable único (Windows, Mac, Linux) y los adjunta al release.
+# Arma la extensión de Claude Desktop (.mcpb) y el ejecutable único (Windows y Linux) y los adjunta al release.
 # Para publicar una versión: sube la versión en manifest.json y pyproject.toml,
 # y crea un tag (ej. v0.2.0) o un release en GitHub.
 # En cada pull request corre los tests y deja el .mcpb como artefacto (sin release),
@@ -22,7 +22,6 @@ jobs:
       matrix:
         include:
           - {os: windows-latest, nombre: ucursos-mcp-windows.exe, origen: dist/ucursos-mcp.exe}
-          - {os: macos-latest, nombre: ucursos-mcp-mac, origen: dist/ucursos-mcp}
           - {os: ubuntu-latest, nombre: ucursos-mcp-linux, origen: dist/ucursos-mcp}
     runs-on: ${{ matrix.os }}
     steps:
