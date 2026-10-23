@@ -14,6 +14,13 @@ Si algo falla al arrancar, el log está en Claude Desktop: Configuración → De
 - **Esperado:** aparece "U-Cursos (solo lectura)" versión 0.6.0 activada, sin error. En un chat, el ícono de herramientas muestra 10 tools (entre ellas `detalle_tarea`).
 - **Anota:** cuánto tardó la primera vez y si salió algún error.
 
+## 1b. Instalación con el ejecutable (ChatGPT de escritorio)
+
+- **Haz:** descarga `ucursos-mcp-windows.exe` del artefacto del PR (o del release) y haz doble clic.
+- **Esperado:** una ventana lista las apps donde se instaló (`[OK]`) y espera Enter. Existe `%USERPROFILE%\.codex\config.toml` con `[mcp_servers.ucursos]`. Tras reiniciar ChatGPT de escritorio, el server aparece en Settings → Plugins / MCP y responde "Revisa mis cursos".
+- **Anota:** si SmartScreen o el antivirus bloquearon el archivo, y si ChatGPT realmente lista las tools (los nombres de menú pueden cambiar por versión).
+- **Desinstalar:** `ucursos-mcp.exe uninstall` quita la entrada y deja `.ucursos.bak`.
+
 ## 2. Login
 
 - **Escribe:** `¿Tengo sesión activa en U-Cursos?`

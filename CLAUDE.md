@@ -25,7 +25,10 @@ src/ucursos_mcp/
   parsers.py  HTML -> modelos. ÚNICA capa que conoce el HTML de U-Cursos
   documentos.py  archivo descargado -> texto (pypdf, python-docx, python-pptx). No sabe de U-Cursos
   models.py   DTOs pydantic
+  launcher.py   entrada: sin args y stdin pipe = server; ejecutable con doble clic = instalar; install/uninstall/login/version
+  instalador.py registra el server en ChatGPT/Codex (~/.codex/config.toml), Claude Desktop y Cursor. Solo edita configs ajenas (con .bak), no toca la sesión
   server.py   tools MCP (MCPServer, patrón Facade). Errores esperables -> ToolError (decorador errores_legibles)
+ucursos_exe.py             entrada que empaqueta PyInstaller (ejecutable único; el workflow lo arma para Windows/Mac/Linux)
 mcpb_server.py             entrada de la extensión (Claude Desktop corre `uv run --directory <ext> mcpb_server.py`)
 manifest.json, .mcpbignore extensión .mcpb; el workflow release.yml la arma al crear un tag v* y en cada PR (artefacto)
 PRUEBAS.md                 pruebas manuales en Claude Desktop; actualizarla al agregar o cambiar tools
@@ -34,6 +37,7 @@ tests/test_parsers.py      tests sintéticos + tests sobre fixtures reales si ex
 tests/test_documentos.py   extracción de texto con archivos armados en memoria
 tests/test_server.py       errores legibles, cursos inscritos, rutas de descarga, paginación, tareas, detalle_tarea
 tests/test_auth.py         login: perfiles falsos, WAL de Firefox/Zen, diagnóstico
+tests/test_instalador.py  configs de las apps en carpetas temporales, modo doble clic
 tests/test_client.py       validar_cookies con un servidor falso (httpx.MockTransport)
 ```
 

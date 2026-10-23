@@ -21,7 +21,7 @@ dependencies = [
 dev = ["pytest>=8"]
 
 [project.scripts]
-ucursos-mcp = "ucursos_mcp.server:main"
+ucursos-mcp = "ucursos_mcp.launcher:main"
 ucursos-login = "ucursos_mcp.auth:main"
 
 [build-system]
