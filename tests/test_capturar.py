@@ -23,15 +23,31 @@ PAGINA = f"""<html><head><title>Foro MA2001</title><meta name="csrf" content="to
 <a href="../material_docente/bajar?id=5&amp;token=abc">Pauta de Juana.pdf</a>
 <a href="/archivos/juana-perez.pdf">otro</a><img src="https://fotos.cl/juana.jpg" alt="Juana"></div>
 <p><strong>Sala:</strong> B-212</p>
+<ul><li id="widget_perfil" class="usuario {HASH}"></li><li id="curso.1349697"></li></ul>
+<div id="mensaje_555555" class="msg c555555 raiz"></div><div id="mensaje_777777" class="msg c555555 hijo"></div>
+<td class="semana-202602"></td>
 </div></body></html>"""
 
 
 def test_esqueleto_no_deja_datos():
     out = capturar.esqueleto(PAGINA)
     for dato in ("Sebastián", "Ramírez", "Juana", "juana", "Pérez", "MA2001", "CC1002", "Cálculo", HASH,
-                 "12.345.678-9", "8765", "drive.google", "privado", "tok", "fotos.cl", "data-autor", "Varias"):
+                 "12.345.678-9", "8765", "drive.google", "privado", "tok", "fotos.cl", "data-autor", "Varias",
+                 "1349697", "555555", "777777"):
         assert dato not in out, dato
     assert capturar.sospechosos(out) == []
+
+
+def test_ids_falsos_mantienen_las_relaciones():
+    out = capturar.esqueleto(PAGINA)
+    assert 'class="msg c10002 raiz" id="mensaje_10002"' in out  # el mismo id real da el mismo falso
+    assert 'class="msg c10002 hijo" id="mensaje_10003"' in out
+    assert 'class="semana-202602"' in out and f'class="usuario {"0" * 32}"' in out
+    assert capturar.limpiar_ids(out) == out  # se puede pasar de nuevo sin cambiar nada
+
+
+def test_sospechosos_detecta_hashes():
+    assert capturar.sospechosos(f'<li class="usuario {HASH}">') == [HASH]
 
 
 def test_esqueleto_conserva_estructura_fechas_y_etiquetas():

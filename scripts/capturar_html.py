@@ -27,6 +27,8 @@ Esqueleto (lo que se publica): además de lo anterior
     las etiquetas cortas que terminan en ":" ("Profesor:")
   - códigos de curso -> CURSO1, CURSO2, ... (en links y texto); links externos -> ejemplo.cl
   - correos, RUT y teléfonos -> valores falsos
+  - hashes de usuario en cualquier parte (también en clases CSS) -> 000...0, e ids numéricos
+    largos de cursos y mensajes -> números falsos
   - se borran meta, link, style, svg, comentarios y todo atributo salvo id, class, href,
     colspan, rowspan, datetime y type
 Revisa igual el esqueleto antes de subirlo (ábrelo en el navegador: solo debería verse "xxxx").
@@ -176,14 +178,37 @@ class _Esqueleto:
         return str(soup)
 
 
+HASH32_RE = re.compile(r"(?<![0-9a-f])[0-9a-f]{32}(?![0-9a-f])")
+# Ids internos (cursos, mensajes, instituciones): con ellos se puede saber qué ramos tomas.
+# semana-AAAASS es año y semana del calendario: no identifica a nadie y el parser lo necesita.
+ID_NUMERICO_RE = re.compile(r"(?<!semana-)(?<!\d)\d{5,}(?!\d)")
+ATRIBUTO_RE = re.compile(r'\b(id|class|href)="([^"]*)"')
+
+
+def limpiar_ids(html: str) -> str:
+    """Hashes de usuario (en links, clases o donde sea) -> 000...0 e ids numéricos largos de los
+    atributos -> números falsos, siempre el mismo para el mismo id (así se ve qué responde a qué)."""
+    falsos: dict[str, str] = {}
+
+    def numero(m: re.Match) -> str:
+        n = m.group(0)
+        return n if set(n) == {"0"} else falsos.setdefault(n, str(10001 + len(falsos)))
+
+    def atributo(m: re.Match) -> str:
+        return f'{m.group(1)}="{ID_NUMERICO_RE.sub(numero, m.group(2))}"'
+
+    return ATRIBUTO_RE.sub(atributo, HASH32_RE.sub("0" * 32, html))
+
+
 def esqueleto(html: str) -> str:
     """Página -> solo su estructura, apta para publicar (ver el docstring del módulo)."""
-    return _Esqueleto()(html)
+    return limpiar_ids(_Esqueleto()(html))
 
 
 def sospechosos(html: str) -> list[str]:
-    """Correos o RUT que hayan sobrevivido (no debería haber ninguno)."""
-    return [x for x in EMAIL_RE.findall(html) + RUT_RE.findall(html) if x not in ("persona@ejemplo.cl", "11.111.111-1")]
+    """Correos, RUT o hashes de usuario que hayan sobrevivido (no debería haber ninguno)."""
+    encontrados = EMAIL_RE.findall(html) + RUT_RE.findall(html) + HASH32_RE.findall(html)
+    return [x for x in encontrados if x not in ("persona@ejemplo.cl", "11.111.111-1", "0" * 32)]
 
 
 def _guardar_esqueleto(nombre: str, html: str) -> None:
