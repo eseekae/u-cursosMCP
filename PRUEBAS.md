@@ -90,7 +90,7 @@ Estas tools usan un lector genérico (no hay HTML real de estas secciones todav�
 - **Escribe:** `¿Cuál es mi horario?`
 - **Esperado:** `horario` trae los bloques de la semana con sus ramos, igual que en U-Cursos.
 - **Prueba también:** en una comunidad, `¿Qué archivos hay en <comunidad>?`: `presentacion_curso` lista la sección de archivos y `leer_seccion` la lee.
-- **Anota:** por cada sección, si sale vacía, si `texto` trae basura del menú, si los items quedan partidos o juntos, y el nombre de la sección en la URL. Mejor aún: captura la página con `scripts/capturar_html.py` (ver README) para darle un parser propio.
+- **Anota:** por cada sección, si sale vacía, si `texto` trae basura del menú, si los items quedan partidos o juntos, y el nombre de la sección en la URL. Mejor aún: captura la página con `scripts/capturar_html.py` (ver README) y sube solo su esqueleto, para darle un parser propio.
 
 ## 9. Sesión guardada
 

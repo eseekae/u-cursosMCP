@@ -270,9 +270,11 @@ REALES = {
 }
 
 
+@pytest.mark.parametrize("carpeta", ["", "esqueletos"])
 @pytest.mark.parametrize("nombre,parser", REALES.items())
-def test_fixture_real(nombre, parser):
-    archivo = FIXTURES / f"{nombre}.html"
+def test_fixture_real(nombre, parser, carpeta):
+    """La captura local (solo en tu PC) y su esqueleto (el que se sube) deben dar datos."""
+    archivo = FIXTURES / carpeta / f"{nombre}.html"
     if not archivo.exists():
-        pytest.skip(f"Falta {archivo.name}: captúralo con scripts/capturar_html.py")
+        pytest.skip(f"Falta {carpeta or 'fixtures'}/{archivo.name}: captúralo con scripts/capturar_html.py")
     assert parser(archivo.read_text(encoding="utf-8")), f"{nombre}: el parser no sacó nada"

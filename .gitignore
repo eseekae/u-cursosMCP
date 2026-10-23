@@ -17,3 +17,7 @@ descargas/
 
 # Extensión empaquetada (se publica en Releases, no en el repo)
 *.mcpb
+
+# Páginas capturadas con scripts/capturar_html.py: traen tus ramos, tu nombre y datos de otros.
+# Se quedan en tu PC. Lo que se sube son los esqueletos (tests/fixtures/esqueletos/).
+tests/fixtures/*.html

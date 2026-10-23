@@ -49,7 +49,7 @@ El script anonimiza, pero **revisar el archivo** antes de commitearlo: buscar RU
 uv run pytest -q
 ```
 
-`test_fixture_real` usa automáticamente cualquier `tests/fixtures/<nombre>.html`. Si el arreglo cubre un caso nuevo, agregar un test sintético en `tests/test_parsers.py`.
+`test_fixture_real` usa automáticamente `tests/fixtures/<nombre>.html` (local, ignorado por git) y `tests/fixtures/esqueletos/<nombre>.html` (el que se commitea). Si el arreglo cubre un caso nuevo, agregar un test sintético en `tests/test_parsers.py`.
 
 Probar la tool de punta a punta con el MCP Inspector: `uv run mcp dev src/ucursos_mcp/server.py`.
 

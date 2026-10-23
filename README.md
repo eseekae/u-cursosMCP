@@ -118,7 +118,7 @@ uv run mcp dev src/ucursos_mcp/server.py      # MCP Inspector
 
 **Claude Code:** abre Claude Code dentro de la carpeta del repo; `.mcp.json` ya registra el server `ucursos`.
 
-**Fixtures:** `uv run python scripts/capturar_html.py <ruta> <nombre>` guarda una página anonimizada en `tests/fixtures/`. Revísala antes de commitear: no deben quedar nombres, RUT ni correos.
+**Fixtures:** `uv run python scripts/capturar_html.py <ruta> <nombre>` guarda dos versiones: `tests/fixtures/<nombre>.html` (casi completa, ignorada por git: trae tus ramos y datos de otros) y `tests/fixtures/esqueletos/<nombre>.html` (solo estructura: el texto escrito por personas queda como "xxxx" y los códigos de curso como CURSO1). Solo se suben los esqueletos; ábrelos en el navegador antes de commitear. `--esqueleto` rehace los esqueletos de lo que ya tengas descargado.
 
 ### Armar la extensión
 
